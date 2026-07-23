@@ -2,6 +2,7 @@
 // student/coding_exam.php — Student Programming Workspace & Compiler Simulator
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/compiler_engine.php';
 require_role('student');
 
 $user_id = (int)$_SESSION['user_id'];
@@ -30,50 +31,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $language = $_POST['language'] ?? 'python';
     $action = $_POST['action'] ?? 'run'; // 'run' or 'submit'
     
-    if (empty($code)) {
+    if (empty(trim($code))) {
         $error = 'Please write some code before execution.';
     } else {
-        // Simulated execution results
-        // Checks if code contains some correct terms for basic syntax matching
-        $is_correct = false;
-        
-        // Simple mock matching patterns
-        if ($problem_id == 1) { // Two Sum
-            if (stripos($code, 'target') !== false && (stripos($code, 'index') !== false || stripos($code, 'dict') !== false || stripos($code, 'map') !== false || stripos($code, 'for') !== false)) {
-                $is_correct = true;
-            }
-        } elseif ($problem_id == 2) { // Fibonacci
-            if (stripos($code, 'fib') !== false || (stripos($code, 'recur') !== false || stripos($code, 'loop') !== false || stripos($code, 'while') !== false || stripos($code, 'for') !== false)) {
-                $is_correct = true;
-            }
-        } else {
-            $is_correct = (strlen($code) > 40); // default sanity length
-        }
-        
-        // Simulating run constraints
-        $runtime = rand(15, 80); // milliseconds
-        $memory = rand(10, 32);  // MB
-        
-        if ($action === 'run') {
-            $run_status = $is_correct ? 'Sample Test Passed' : 'Wrong Answer';
-            $run_output = "Execution Stats:\n- Language: " . ucfirst($language) . "\n- Runtime: {$runtime}ms\n- Memory: {$memory}MB\n\nOutput Result:\n" . ($is_correct ? $problem['sample_output'] : "Actual output did not match expected sample.");
-        } else {
-            // Submit
-            $status = $is_correct ? 'Accepted' : 'Wrong Answer';
-            
-            // Randomly trigger TLE or MLE if code is tiny or huge
-            if (strlen($code) < 15) {
-                $status = 'Compilation Error';
-            }
-            
+        // Run code through the real online compiler, syntax validator & test suite evaluator
+        $comp_res = execute_compiler($code, $language, $problem);
+
+        $run_status = $comp_res['status'];
+        $run_output = $comp_res['output'];
+        $runtime    = $comp_res['runtime'];
+        $memory     = $comp_res['memory'];
+        $is_correct = $comp_res['is_correct'];
+
+        if ($action === 'submit') {
+            $status = $is_correct ? 'Accepted' : $run_status;
+
             $stmt = $pdo->prepare("
                 INSERT INTO coding_submissions (user_id, problem_id, language, code, status, runtime, memory) 
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
             if ($stmt->execute([$user_id, $problem_id, $language, $code, $status, $runtime, $memory])) {
-                $success = "Submission registered! Result: " . $status;
                 if ($status === 'Accepted') {
+                    $success = "🎉 Submission ACCEPTED! All test cases passed.";
                     send_notification($user_id, "🎉 Your solution for '{$problem['title']}' was ACCEPTED!");
+                } else {
+                    $error = "Submission result: " . $status . ". Please check console output for details.";
                 }
             } else {
                 $error = 'Failed to submit solution.';
