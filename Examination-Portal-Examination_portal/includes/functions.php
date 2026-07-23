@@ -423,6 +423,39 @@ function send_smtp_verification_email(int $user_id, string $email, string $token
     log_email($user_id, 'verification', $email, $subject, $body);
 }
 
+function get_help_queries(?int $user_id = null): array {
+    global $pdo;
+    if ($user_id) {
+        $stmt = $pdo->prepare("SELECT * FROM help_queries WHERE user_id = ? ORDER BY created_at DESC");
+        $stmt->execute([$user_id]);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM help_queries ORDER BY created_at DESC");
+    }
+    return $stmt->fetchAll() ?: [];
+}
+
+function reply_to_help_query(int $query_id, int $admin_id, string $reply_text): bool {
+    global $pdo;
+    $stmt = $pdo->prepare("
+        UPDATE help_queries
+        SET admin_reply = ?, replied_by = ?, replied_at = NOW(), status = 'replied'
+        WHERE id = ?
+    ");
+    $ok = $stmt->execute([$reply_text, $admin_id, $query_id]);
+
+    if ($ok) {
+        // Find query owner to send notification
+        $q = $pdo->prepare("SELECT user_id, user_name, query_text FROM help_queries WHERE id = ?");
+        $q->execute([$query_id]);
+        $row = $q->fetch();
+        if ($row && $row['user_id']) {
+            $notif = "💬 Super Admin replied to your query: \"" . mb_strimwidth($reply_text, 0, 120, "…") . "\"";
+            send_notification((int)$row['user_id'], $notif);
+        }
+    }
+    return $ok;
+}
+
 function log_email(int $user_id, string $type, string $recipient, string $subject, string $body): void {
     global $pdo;
     $stmt = $pdo->prepare("INSERT INTO email_logs (user_id, email_type, recipient, subject, body) VALUES (?, ?, ?, ?, ?)");

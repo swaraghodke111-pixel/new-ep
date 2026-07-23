@@ -26,7 +26,15 @@ if (empty($message)) {
 
 global $pdo;
 
-// Find all Super Admins (role = admin)
+// Store in help_queries table
+$user_id = is_logged_in() ? (int)$_SESSION['user_id'] : null;
+$ins = $pdo->prepare("
+    INSERT INTO help_queries (user_id, user_name, user_email, query_text)
+    VALUES (?, ?, ?, ?)
+");
+$ins->execute([$user_id, $user_name ?: 'Portal User', $user_email ?: 'user@portal.com', $message]);
+
+// Find all Super Admins (role = admin) to notify
 $stmt = $pdo->query("SELECT id, name FROM users WHERE role = 'admin'");
 $admins = $stmt->fetchAll();
 
@@ -47,5 +55,5 @@ foreach ($admins as $admin) {
 
 echo json_encode([
     'success' => true,
-    'message' => 'Your help request has been sent to the Super Admin! They will receive a notification shortly.'
+    'message' => 'Your help request has been sent to the Super Admin! They will receive your query and reply shortly.'
 ]);
