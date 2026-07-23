@@ -239,7 +239,13 @@ function submit_exam(int $user_id, int $exam_id, bool $auto = false): array {
     }
 
     $percentage = $total > 0 ? round(($score / $total) * 100, 2) : 0;
-    $passed = $percentage >= (($exam['pass_marks'] / max($total, 1)) * 100);
+    
+    $pass_req = (float)($exam['pass_marks'] ?? 40);
+    if ($pass_req <= $total && $total > 0) {
+        $passed = ($score >= $pass_req);
+    } else {
+        $passed = ($percentage >= $pass_req);
+    }
 
     // Calculate time taken
     $attempt = get_attempt($user_id, $exam_id);
