@@ -5,7 +5,8 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_role('faculty','admin');
 
 $user_id  = (int)$_SESSION['user_id'];
-$my_exams = get_exams_by_creator($user_id);
+$is_admin = (($_SESSION['role'] ?? '') === 'admin' || ($_SESSION['user_role'] ?? '') === 'admin');
+$my_exams = $is_admin ? get_all_exams() : get_exams_by_creator($user_id);
 global $pdo;
 
 $exam_id  = (int)($_GET['exam_id'] ?? $_POST['exam_id'] ?? 0);
