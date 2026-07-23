@@ -16,18 +16,34 @@ if (is_logged_in()) { redirect(get_dashboard_url()); exit; }
 
 $error = '';
 $pre_selected_role = '';
+$lockout_remaining = 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email    = trim($_POST['email'] ?? '');
+    $email    = strtolower(trim($_POST['email'] ?? ''));
     $password = $_POST['password'] ?? '';
     $selected_role = trim($_POST['selected_role'] ?? '');
     $pre_selected_role = $selected_role;
 
-    if (empty($email) || empty($password)) {
+    if (!isset($_SESSION['login_attempts'])) {
+        $_SESSION['login_attempts'] = [];
+    }
+
+    $email_key = md5($email ?: 'guest');
+    $attempts_data = $_SESSION['login_attempts'][$email_key] ?? ['count' => 0, 'lockout_until' => 0];
+    $now = time();
+
+    // Check if account/session is currently locked out
+    if ($now < $attempts_data['lockout_until']) {
+        $lockout_remaining = $attempts_data['lockout_until'] - $now;
+        $error = "🚫 Too many failed login attempts! Account login is frozen for " . $lockout_remaining . " seconds. Please wait before trying again.";
+    } elseif (empty($email) || empty($password)) {
         $error = 'Please fill in all fields.';
     } else {
         $user = get_user_by_email($email);
         if ($user && password_verify($password, $user['password'])) {
+            // Success: Reset attempt counters
+            unset($_SESSION['login_attempts'][$email_key]);
+
             // Auto-verify account if not marked verified
             if (!$user['is_verified'] || !$user['email_verified']) {
                 global $pdo;
@@ -41,7 +57,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(get_dashboard_url());
             exit;
         } else {
-            $error = 'Invalid email or password. Please try again.';
+            // Failed attempt logic
+            // Reset count if previous lockout window passed
+            if ($now >= $attempts_data['lockout_until'] && $attempts_data['lockout_until'] > 0) {
+                $attempts_data['count'] = 0;
+                $attempts_data['lockout_until'] = 0;
+            }
+
+            $attempts_data['count']++;
+
+            if ($attempts_data['count'] >= 3) {
+                $attempts_data['lockout_until'] = $now + 30; // 30 seconds freeze
+                $attempts_data['count'] = 0; // Reset count for next cycle
+                $lockout_remaining = 30;
+                $error = "🚫 Too many failed login attempts (3/3)! Account login is frozen for 30 seconds.";
+            } else {
+                $remaining_attempts = 3 - $attempts_data['count'];
+                $error = "Invalid email or password. Attempt " . $attempts_data['count'] . " of 3. (" . $remaining_attempts . " attempt" . ($remaining_attempts > 1 ? "s" : "") . " remaining before 30s lockout)";
+            }
+
+            $_SESSION['login_attempts'][$email_key] = $attempts_data;
         }
     }
 }
@@ -420,6 +455,35 @@ async function submitHelpRequest(e) {
         submitBtn.innerText = 'Send Request 🚀';
     }
 }
+
+// ── 30-Second Lockout Countdown Timer ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    let secondsLeft = <?= (int)$lockout_remaining ?>;
+    const loginBtn = document.getElementById('login-btn');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+
+    if (secondsLeft > 0 && loginBtn) {
+        if (emailInput) emailInput.disabled = true;
+        if (passwordInput) passwordInput.disabled = true;
+        loginBtn.disabled = true;
+
+        const interval = setInterval(function() {
+            if (secondsLeft <= 0) {
+                clearInterval(interval);
+                loginBtn.disabled = false;
+                if (emailInput) emailInput.disabled = false;
+                if (passwordInput) passwordInput.disabled = false;
+                loginBtn.innerText = 'Sign In →';
+                loginBtn.style.background = '#A67C52';
+            } else {
+                loginBtn.innerText = '⏳ Frozen: ' + secondsLeft + 's remaining...';
+                loginBtn.style.background = '#64748b';
+                secondsLeft--;
+            }
+        }, 1000);
+    }
+});
 </script>
 </body>
 </html>
