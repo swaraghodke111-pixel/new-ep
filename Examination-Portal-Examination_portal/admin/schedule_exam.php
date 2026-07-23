@@ -30,15 +30,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Handle Schedule Update POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $exam_id && (!isset($_POST['action']) || $_POST['action'] === 'schedule')) {
-    $start_time = $_POST['start_time'] ?? '';
-    $end_time   = $_POST['end_time'] ?? '';
+    $start_date = $_POST['start_date'] ?? '';
+    $end_date   = $_POST['end_date'] ?? '';
     $duration   = (int)($_POST['duration'] ?? 60);
 
-    if (empty($start_time) || empty($end_time)) {
-        flash('error', 'Start and end times are required.');
-    } elseif (strtotime($end_time) <= strtotime($start_time)) {
-        flash('error', 'End time must be after start time.');
+    if (empty($start_date) || empty($end_date)) {
+        flash('error', 'Start and end dates are required.');
+    } elseif (strtotime($end_date) < strtotime($start_date)) {
+        flash('error', 'End date must be on or after start date.');
     } else {
+        $start_time = $start_date . ' 00:00:00';
+        $end_time   = $end_date . ' 23:59:59';
         $pdo->prepare("UPDATE exams SET start_time=?, end_time=?, duration=?, status='scheduled' WHERE id=?")
             ->execute([$start_time, $end_time, $duration, $exam_id]);
         flash('success', 'Exam schedule updated successfully!');
@@ -213,14 +215,14 @@ if($fe):?><div class="alert alert-error">❌ <?=h($fe)?></div><?php endif;
                 <input type="hidden" name="action" value="schedule">
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Start Date & Time *</label>
-                        <input type="datetime-local" name="start_time" class="form-control"
-                               value="<?= date('Y-m-d\TH:i', strtotime($exam['start_time'])) ?>" required>
+                        <label class="form-label">Start Date *</label>
+                        <input type="date" name="start_date" class="form-control"
+                               value="<?= date('Y-m-d', strtotime($exam['start_time'] ?? 'now')) ?>" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">End Date & Time *</label>
-                        <input type="datetime-local" name="end_time" class="form-control"
-                               value="<?= date('Y-m-d\TH:i', strtotime($exam['end_time'])) ?>" required>
+                        <label class="form-label">End Date *</label>
+                        <input type="date" name="end_date" class="form-control"
+                               value="<?= date('Y-m-d', strtotime($exam['end_time'] ?? '+7 days')) ?>" required>
                     </div>
                 </div>
                 <div class="form-group">
@@ -258,7 +260,7 @@ if($fe):?><div class="alert alert-error">❌ <?=h($fe)?></div><?php endif;
                         <th>Exam Details</th>
                         <th>Created By</th>
                         <th>Questions & Marks</th>
-                        <th>Schedule Window</th>
+                        <th>Scheduled Dates</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -280,9 +282,9 @@ if($fe):?><div class="alert alert-error">❌ <?=h($fe)?></div><?php endif;
                             <div>❓ <strong><?= $e['question_count'] ?></strong> Qs</div>
                             <div style="color:var(--text-muted);">📊 <?= $e['total_marks'] ?> marks</div>
                         </td>
-                        <td style="font-size:0.8rem;">
-                            <div>🏁 Start: <strong><?= format_datetime($e['start_time']) ?></strong></div>
-                            <div>🛑 End: <strong><?= format_datetime($e['end_time']) ?></strong></div>
+                        <td style="font-size:0.85rem;">
+                            <div>📅 Start: <strong><?= date('d M Y', strtotime($e['start_time'])) ?></strong></div>
+                            <div>🏁 End: <strong><?= date('d M Y', strtotime($e['end_time'])) ?></strong></div>
                             <div style="color:var(--text-muted);">⏱ Duration: <?= $e['duration'] ?> mins</div>
                         </td>
                         <td>
