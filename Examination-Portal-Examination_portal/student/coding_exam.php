@@ -252,7 +252,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
         <form method="POST" action="" id="ideForm" style="display:flex; flex-direction:column; height:100%;">
             <div class="ide-editor-box">
                 <div class="ide-editor-header">
-                    <div>
+                    <div style="display:flex; align-items:center; gap:12px;">
                         <select name="language" class="form-control" style="background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.1); padding:4px 8px; font-size:0.85rem; border-radius:6px;">
                             <option value="python">Python</option>
                             <option value="javascript">JavaScript</option>
@@ -266,6 +266,9 @@ require_once dirname(__DIR__) . '/includes/header.php';
                             <option value="swift">Swift</option>
                             <option value="ruby">Ruby</option>
                         </select>
+                        <span class="badge" style="background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); font-size:0.75rem; font-weight:600;">
+                            🔒 Copy & Paste Disabled
+                        </span>
                     </div>
                     <div>
                         <button type="submit" name="action" value="run" class="btn btn-outline btn-sm" onclick="setSubmitAction('run')">⚙️ Run Code</button>
@@ -276,6 +279,8 @@ require_once dirname(__DIR__) . '/includes/header.php';
                 <input type="hidden" name="action" id="actionField" value="run">
 
                 <div class="ide-textarea-wrap">
+                    <!-- Warning Toast for Copy/Paste attempts -->
+                    <div id="copy-paste-warning" style="display:none; position:absolute; top:12px; right:12px; z-index:50; background:rgba(239,68,68,0.92); color:#fff; padding:8px 14px; border-radius:8px; font-size:0.82rem; font-weight:600; box-shadow:0 4px 12px rgba(0,0,0,0.3); backdrop-filter:blur(4px);"></div>
                     <textarea name="code" class="ide-textarea" placeholder="// Write your code solution here...&#10;// Make sure to read input and print output format as requested." required><?= h($_POST['code'] ?? '') ?></textarea>
                 </div>
 
@@ -311,6 +316,87 @@ function switchLeftTab(tab) {
 function setSubmitAction(action) {
     document.getElementById('actionField').value = action;
 }
+
+// ── Anti Copy-Paste Protection ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    const codeEditor = document.querySelector('.ide-textarea');
+    const warningToast = document.getElementById('copy-paste-warning');
+    let toastTimer = null;
+
+    function showWarning(msg) {
+        if (!warningToast) return;
+        warningToast.innerText = msg;
+        warningToast.style.display = 'block';
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() {
+            warningToast.style.display = 'none';
+        }, 3000);
+    }
+
+    if (codeEditor) {
+        // Prevent Paste
+        codeEditor.addEventListener('paste', function(e) {
+            e.preventDefault();
+            showWarning('🚫 Copy & Paste is disabled during coding examinations!');
+            return false;
+        });
+
+        // Prevent Copy
+        codeEditor.addEventListener('copy', function(e) {
+            e.preventDefault();
+            showWarning('🚫 Copying code is disabled during coding examinations!');
+            return false;
+        });
+
+        // Prevent Cut
+        codeEditor.addEventListener('cut', function(e) {
+            e.preventDefault();
+            showWarning('🚫 Cutting code is disabled during coding examinations!');
+            return false;
+        });
+
+        // Prevent Drag & Drop text
+        codeEditor.addEventListener('drop', function(e) {
+            e.preventDefault();
+            showWarning('🚫 Drag & Drop code is disabled during coding examinations!');
+            return false;
+        });
+
+        // Prevent Right-Click Context Menu inside Editor
+        codeEditor.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            showWarning('🚫 Context menu is disabled inside the editor!');
+            return false;
+        });
+
+        // Prevent Keyboard Shortcuts (Ctrl+C, Ctrl+V, Ctrl+X, Cmd+C, Cmd+V, Cmd+X)
+        codeEditor.addEventListener('keydown', function(e) {
+            const isControl = e.ctrlKey || e.metaKey;
+            const key = e.key ? e.key.toLowerCase() : '';
+
+            if (isControl && (key === 'c' || key === 'v' || key === 'x')) {
+                e.preventDefault();
+                showWarning('🚫 Copy/Paste keyboard shortcuts are disabled!');
+                return false;
+            }
+        });
+    }
+
+    // Also prevent copy/contextmenu on problem description to prevent copying question prompt
+    const descPanel = document.getElementById('left-desc-tab');
+    if (descPanel) {
+        descPanel.addEventListener('copy', function(e) {
+            e.preventDefault();
+            showWarning('🚫 Copying problem text is disabled during coding examinations!');
+            return false;
+        });
+        descPanel.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            showWarning('🚫 Right-click is disabled on problem description!');
+            return false;
+        });
+    }
+});
 </script>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
