@@ -45,11 +45,12 @@ require_once dirname(__DIR__) . '/includes/header.php';
         $is_live = ($now >= $start && $now < $end);
         $is_past = ($now >= $end);
         $is_soon = (!$is_live && !$is_past);
+        $starts_in = max(0, $start - $now);
     ?>
     <div class="exam-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
             <div class="exam-card-title"><?= h($exam['title']) ?></div>
-            <?= exam_status_badge($exam) ?>
+            <span id="badge-quiz-<?= $exam['id'] ?>"><?= exam_status_badge($exam) ?></span>
         </div>
         <div class="exam-card-desc">
             <?= h(mb_strimwidth($exam['description'] ?? 'No description provided.', 0, 120, '…')) ?>
@@ -64,6 +65,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
             <div>🏁 End:   <?= format_datetime($exam['end_time']) ?></div>
         </div>
 
+        <div id="btn-quiz-container-<?= $exam['id'] ?>">
         <?php if ($taken): ?>
             <div style="display:flex;gap:8px;align-items:center;">
                 <span class="badge <?= $taken['passed'] ? 'badge-passed' : 'badge-failed' ?>">
@@ -76,14 +78,18 @@ require_once dirname(__DIR__) . '/includes/header.php';
                 🚀 Start Quiz Exam
             </a>
         <?php elseif ($is_soon): ?>
-            <button class="btn btn-outline" disabled style="width:100%;justify-content:center;cursor:not-allowed;">
-                ⏳ Starts <?= format_datetime($exam['start_time']) ?>
+            <button id="soon-quiz-btn-<?= $exam['id'] ?>" class="btn btn-warning live-quiz-countdown-btn"
+                    data-seconds="<?= $starts_in ?>"
+                    data-exam-id="<?= $exam['id'] ?>"
+                    style="width:100%;justify-content:center;font-weight:600;">
+                ⏳ Starts in: <?= sprintf('%02d:%02d:%02d', floor($starts_in/3600), floor(($starts_in%3600)/60), $starts_in%60) ?>
             </button>
         <?php else: ?>
             <button class="btn btn-outline" disabled style="width:100%;justify-content:center;cursor:not-allowed;">
                 🔒 Exam Ended
             </button>
         <?php endif; ?>
+        </div>
     </div>
     <?php endforeach; ?>
 </div>
@@ -98,5 +104,38 @@ require_once dirname(__DIR__) . '/includes/header.php';
     </div>
 </div>
 <?php endif; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const countdownBtns = document.querySelectorAll('.live-quiz-countdown-btn');
+    countdownBtns.forEach(function(btn) {
+        let secondsLeft = parseInt(btn.getAttribute('data-seconds')) || 0;
+        const examId = btn.getAttribute('data-exam-id');
+
+        const timer = setInterval(function() {
+            if (secondsLeft <= 0) {
+                clearInterval(timer);
+                // Auto-unlock Start Quiz Exam button
+                const container = document.getElementById('btn-quiz-container-' + examId);
+                const badge = document.getElementById('badge-quiz-' + examId);
+
+                if (container) {
+                    container.innerHTML = '<a href="take_exam.php?exam_id=' + examId + '" class="btn btn-success" style="width:100%;justify-content:center;">🚀 Start Quiz Exam</a>';
+                }
+                if (badge) {
+                    badge.innerHTML = '<span class="badge badge-active">Active</span>';
+                }
+            } else {
+                secondsLeft--;
+                const hrs = Math.floor(secondsLeft / 3600);
+                const mins = Math.floor((secondsLeft % 3600) / 60);
+                const secs = secondsLeft % 60;
+                const pad = (n) => n.toString().padStart(2, '0');
+                btn.innerText = '⏳ Starts in: ' + (hrs > 0 ? pad(hrs) + ':' : '') + pad(mins) + ':' + pad(secs);
+            }
+        }, 1000);
+    });
+});
+</script>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>

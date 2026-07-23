@@ -19,9 +19,9 @@ $now   = time();
 $start = strtotime($exam['start_time']);
 $end   = strtotime($exam['end_time']);
 
-// Validate exam window
-if ($now < $start) {
-    flash('error', 'This exam has not started yet.');
+// Validate exam window (with 60s tolerance for seamless start time entrance)
+if (($now + 60) < $start) {
+    flash('error', 'This exam has not started yet. Scheduled start time: ' . format_datetime($exam['start_time']));
     redirect(BASE_URL . '/student/exams.php');
 }
 if ($now >= $end) {
