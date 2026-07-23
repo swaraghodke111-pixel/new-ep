@@ -271,12 +271,12 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('question_id', qid);
             formData.append('answer', val);
 
-            fetch('take_exam.php?exam_id=<?= $exam_id %>', {
+            fetch('take_exam.php?exam_id=<?php echo $exam_id; ?>', {
                 method: 'POST',
                 body: formData
             })
-            .then(res => res.json())
-            .then(data => {
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
                 if (data.ok) {
                     const badge = document.getElementById('attempt-badge-' + qid);
                     const count = data.attempt_count;
@@ -296,7 +296,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         // Disable all radio buttons for this question
                         const qRadios = document.querySelectorAll('input[name="q_' + qid + '"]');
-                        qRadios.forEach(r => {
+                        qRadios.forEach(function(r) {
                             r.disabled = true;
                             r.parentElement.style.opacity = '0.65';
                             r.parentElement.style.cursor = 'not-allowed';
@@ -325,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             })
-            .catch(err => console.error('Error saving answer:', err));
+            .catch(function(err) { console.error('Error saving answer:', err); });
         });
     });
 });
