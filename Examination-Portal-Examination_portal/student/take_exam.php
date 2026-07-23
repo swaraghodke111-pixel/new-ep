@@ -1,5 +1,5 @@
 <?php
-// student/take_exam.php — Timer-based exam taking page
+// student/take_exam.php — Per-Question 3-Attempts & Auto-Submit Exam Workspace
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_role('student');
@@ -15,35 +15,22 @@ if (!$exam || !$exam['is_published']) {
     redirect(BASE_URL . '/student/exams.php');
 }
 
-$now   = time();
-$start = strtotime($exam['start_time']);
-$end   = strtotime($exam['end_time']);
-
-// Validate exam window (with 60s tolerance for seamless start time entrance)
-if (($now + 60) < $start) {
-    flash('error', 'This exam has not started yet. Scheduled start time: ' . format_datetime($exam['start_time']));
-    redirect(BASE_URL . '/student/exams.php');
-}
-if ($now >= $end) {
-    flash('error', 'This exam has ended.');
-    redirect(BASE_URL . '/student/exams.php');
-}
-
 // Check already submitted
 $existing = get_result($user_id, $exam_id);
 if ($existing) {
     redirect(BASE_URL . '/student/submit_exam.php?exam_id=' . $exam_id . '&done=1');
 }
 
-// ── AJAX: Save individual answer ─────────────────────────────────────────────
+// ── AJAX: Save individual answer with attempt tracking ──────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_answer') {
     header('Content-Type: application/json');
     $q_id   = (int)($_POST['question_id'] ?? 0);
     $answer = trim($_POST['answer'] ?? '');
     if ($q_id && $answer) {
         start_attempt($user_id, $exam_id);
-        save_answer($user_id, $exam_id, $q_id, $answer);
-        echo json_encode(['ok' => true]);
+        $count = save_answer($user_id, $exam_id, $q_id, $answer);
+        $locked = ($count >= 3);
+        echo json_encode(['ok' => true, 'attempt_count' => $count, 'locked' => $locked]);
     } else {
         echo json_encode(['ok' => false]);
     }
@@ -83,13 +70,15 @@ $attempt    = get_attempt($user_id, $exam_id);
 $elapsed    = $attempt ? (time() - strtotime($attempt['start_time'])) : 0;
 $remaining  = max(0, ($exam['duration'] * 60) - $elapsed);
 
-// Load already-saved answers
+// Load already-saved answers and per-question attempt counts
 global $pdo;
-$saved_stmt = $pdo->prepare("SELECT question_id, answer FROM answers WHERE user_id=? AND exam_id=?");
+$saved_stmt = $pdo->prepare("SELECT question_id, answer, attempt_count FROM answers WHERE user_id=? AND exam_id=?");
 $saved_stmt->execute([$user_id, $exam_id]);
-$saved_answers = [];
+$saved_answers  = [];
+$saved_attempts = [];
 foreach ($saved_stmt->fetchAll() as $sa) {
-    $saved_answers[$sa['question_id']] = $sa['answer'];
+    $saved_answers[$sa['question_id']]  = $sa['answer'];
+    $saved_attempts[$sa['question_id']] = (int)($sa['attempt_count'] ?? 0);
 }
 
 // Page (no sidebar layout — distraction-free)
@@ -114,9 +103,18 @@ foreach ($saved_stmt->fetchAll() as $sa) {
         }
         .exam-topbar-title { font-weight: 700; font-size: 1rem; }
         .exam-container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+        .toast-notification {
+            position: fixed; top: 80px; right: 24px; z-index: 999;
+            background: rgba(239, 68, 68, 0.95); color: #fff;
+            padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 0.9rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4); display: none;
+            backdrop-filter: blur(8px);
+        }
     </style>
 </head>
 <body>
+
+<div id="toast-notify" class="toast-notification"></div>
 
 <!-- Distraction-free exam top bar -->
 <div class="exam-topbar">
@@ -133,7 +131,7 @@ foreach ($saved_stmt->fetchAll() as $sa) {
         </span>
     </div>
     <div style="color:var(--text-muted);font-size:0.8rem;">
-        <?= $total_q ?> Questions &bull; <?= $exam['duration'] ?> min
+        <?= $total_q ?> Questions &bull; <?= $exam['duration'] ?> min &bull; ⚡ 3 Attempts/Q
     </div>
 </div>
 
@@ -146,7 +144,9 @@ foreach ($saved_stmt->fetchAll() as $sa) {
             <!-- Questions Column -->
             <div>
                 <?php foreach ($questions as $idx => $q):
-                    $saved_val = $saved_answers[$q['id']] ?? '';
+                    $saved_val  = $saved_answers[$q['id']] ?? '';
+                    $q_attempts = $saved_attempts[$q['id']] ?? 0;
+                    $is_locked  = ($q_attempts >= 3);
                     $opts = [
                         'A' => $q['opt1'],
                         'B' => $q['opt2'],
@@ -155,19 +155,26 @@ foreach ($saved_stmt->fetchAll() as $sa) {
                     ];
                 ?>
                 <div class="question-card question-slide" id="question-<?= $idx + 1 ?>" <?= $idx > 0 ? 'style="display:none;"' : '' ?>>
-                    <div class="question-number">Question <?= $idx + 1 ?> of <?= $total_q ?> &bull; <?= $q['marks'] ?> mark<?= $q['marks'] > 1 ? 's' : '' ?></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <div class="question-number">Question <?= $idx + 1 ?> of <?= $total_q ?> &bull; <?= $q['marks'] ?> mark<?= $q['marks'] > 1 ? 's' : '' ?></div>
+                        <span id="attempt-badge-<?= $q['id'] ?>" class="badge" style="<?= $is_locked ? 'background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);' : 'background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3);' ?> font-size:0.75rem; font-weight:700;">
+                            <?= $is_locked ? '🔒 Question Submitted & Locked (3/3 Attempts Used)' : ($q_attempts > 0 ? "⚡ Attempt {$q_attempts} of 3" : '⚡ 3 Attempts Allowed') ?>
+                        </span>
+                    </div>
+
                     <div class="question-text"><?= h($q['question']) ?></div>
 
                     <div class="option-list">
                         <?php foreach ($opts as $letter => $opt_text):
                             $is_saved = ($saved_val === $opt_text);
                         ?>
-                        <label class="option-item <?= $is_saved ? 'selected' : '' ?>" id="opt-<?= $q['id'] ?>-<?= $letter ?>">
+                        <label class="option-item <?= $is_saved ? 'selected' : '' ?> <?= $is_locked ? 'locked-option' : '' ?>" id="opt-<?= $q['id'] ?>-<?= $letter ?>" style="<?= $is_locked ? 'opacity:0.65; cursor:not-allowed;' : '' ?>">
                             <input type="radio"
                                    name="q_<?= $q['id'] ?>"
                                    value="<?= h($opt_text) ?>"
                                    data-qid="<?= $q['id'] ?>"
-                                   <?= $is_saved ? 'checked' : '' ?>>
+                                   <?= $is_saved ? 'checked' : '' ?>
+                                   <?= $is_locked ? 'disabled' : '' ?>>
                             <span class="option-letter"><?= $letter ?></span>
                             <span class="option-text"><?= h($opt_text) ?></span>
                         </label>
@@ -197,8 +204,11 @@ foreach ($saved_stmt->fetchAll() as $sa) {
                     <div class="question-palette">
                         <div class="palette-title">Question Navigator</div>
                         <div class="palette-grid">
-                            <?php foreach ($questions as $idx => $q): ?>
+                            <?php foreach ($questions as $idx => $q):
+                                $q_acc = $saved_attempts[$q['id']] ?? 0;
+                            ?>
                             <button type="button" class="palette-btn <?= array_key_exists($q['id'], $saved_answers) ? 'answered' : '' ?> <?= $idx === 0 ? 'current' : '' ?>"
+                                    id="pal-btn-<?= $q['id'] ?>"
                                     data-q="<?= $idx + 1 ?>">
                                 <?= $idx + 1 ?>
                             </button>
@@ -208,7 +218,7 @@ foreach ($saved_stmt->fetchAll() as $sa) {
 
                     <div style="margin-top:16px;font-size:0.75rem;color:var(--text-muted);text-align:left;line-height:1.6;">
                         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-                            <div style="width:12px;height:12px;background:var(--purple-1);border-radius:3px;"></div> Answered
+                            <div style="width:12px;height:12px;background:var(--purple-1);border-radius:3px;"></div> Answered / Locked
                         </div>
                         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
                             <div style="width:12px;height:12px;border:1.5px solid var(--amber);border-radius:3px;"></div> Current
@@ -230,12 +240,95 @@ foreach ($saved_stmt->fetchAll() as $sa) {
 
 <script src="<?= BASE_URL ?>/assets/js/exam_timer.js"></script>
 <script>
-// Sync second timer display
+// Sync timer display
 setInterval(function() {
     const main = document.getElementById('timer-display');
     const alt  = document.getElementById('timer-display-2');
     if (main && alt) { alt.textContent = main.textContent; alt.className = main.className.replace('timer-display',''); }
 }, 500);
+
+// ── Per-Question 3-Attempts & Auto-Submit Handler ──────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    const radios = document.querySelectorAll('input[type="radio"]');
+    const toast = document.getElementById('toast-notify');
+
+    function showToast(msg, isSuccess) {
+        if (!toast) return;
+        toast.innerText = msg;
+        toast.style.background = isSuccess ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)';
+        toast.style.display = 'block';
+        setTimeout(function() { toast.style.display = 'none'; }, 3000);
+    }
+
+    radios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            const qid = this.getAttribute('data-qid');
+            const val = this.value;
+
+            // Send AJAX to record attempt & answer
+            const formData = new FormData();
+            formData.append('action', 'save_answer');
+            formData.append('question_id', qid);
+            formData.append('answer', val);
+
+            fetch('take_exam.php?exam_id=<?= $exam_id %>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) {
+                    const badge = document.getElementById('attempt-badge-' + qid);
+                    const count = data.attempt_count;
+
+                    // Update Palette button status
+                    const palBtn = document.getElementById('pal-btn-' + qid);
+                    if (palBtn) palBtn.classList.add('answered');
+
+                    if (data.locked || count >= 3) {
+                        // 3rd Attempt Reached — Auto Submit Question & Lock Inputs
+                        if (badge) {
+                            badge.style.background = 'rgba(239, 68, 68, 0.15)';
+                            badge.style.color = '#ef4444';
+                            badge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                            badge.innerText = '🔒 Question Submitted & Locked (3/3 Attempts Used)';
+                        }
+
+                        // Disable all radio buttons for this question
+                        const qRadios = document.querySelectorAll('input[name="q_' + qid + '"]');
+                        qRadios.forEach(r => {
+                            r.disabled = true;
+                            r.parentElement.style.opacity = '0.65';
+                            r.parentElement.style.cursor = 'not-allowed';
+                        });
+
+                        showToast('🔒 3/3 attempts reached! Question auto-submitted & locked.', false);
+
+                        // Auto Advance to next question after short delay
+                        setTimeout(function() {
+                            const nextBtn = document.getElementById('next-btn');
+                            const submitBtn = document.getElementById('submit-btn');
+
+                            if (nextBtn && nextBtn.style.display !== 'none' && !nextBtn.disabled) {
+                                nextBtn.click();
+                            } else if (submitBtn && submitBtn.style.display !== 'none') {
+                                // If last question, auto-submit the exam
+                                document.getElementById('exam-form').submit();
+                            }
+                        }, 750);
+                    } else {
+                        // Attempt 1 or 2
+                        if (badge) {
+                            badge.innerText = '⚡ Attempt ' + count + ' of 3';
+                        }
+                        showToast('Answer saved (Attempt ' + count + ' of 3)', true);
+                    }
+                }
+            })
+            .catch(err => console.error('Error saving answer:', err));
+        });
+    });
+});
 </script>
 </body>
 </html>

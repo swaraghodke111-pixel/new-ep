@@ -205,7 +205,7 @@ function get_attempt(int $user_id, int $exam_id): ?array {
     return $stmt->fetch() ?: null;
 }
 
-function save_answer(int $user_id, int $exam_id, int $question_id, string $answer): void {
+function save_answer(int $user_id, int $exam_id, int $question_id, string $answer): int {
     global $pdo;
     // Check correct
     $q = $pdo->prepare("SELECT answer FROM questions WHERE id=?");
@@ -213,11 +213,19 @@ function save_answer(int $user_id, int $exam_id, int $question_id, string $answe
     $correct_ans = $q->fetchColumn();
     $is_correct = (strtolower(trim($answer)) === strtolower(trim($correct_ans))) ? 1 : 0;
 
+    // Fetch existing attempt count
+    $chk = $pdo->prepare("SELECT attempt_count FROM answers WHERE user_id=? AND exam_id=? AND question_id=?");
+    $chk->execute([$user_id, $exam_id, $question_id]);
+    $existing_count = (int)($chk->fetchColumn() ?: 0);
+    $new_count = min(3, $existing_count + 1);
+
     $pdo->prepare("
-        INSERT INTO answers (user_id, exam_id, question_id, answer, is_correct)
-        VALUES (?,?,?,?,?)
-        ON DUPLICATE KEY UPDATE answer=VALUES(answer), is_correct=VALUES(is_correct)
-    ")->execute([$user_id, $exam_id, $question_id, $answer, $is_correct]);
+        INSERT INTO answers (user_id, exam_id, question_id, answer, is_correct, attempt_count)
+        VALUES (?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE answer=VALUES(answer), is_correct=VALUES(is_correct), attempt_count=VALUES(attempt_count)
+    ")->execute([$user_id, $exam_id, $question_id, $answer, $is_correct, $new_count]);
+
+    return $new_count;
 }
 
 function submit_exam(int $user_id, int $exam_id, bool $auto = false): array {
