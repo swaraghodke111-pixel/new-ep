@@ -15,6 +15,20 @@ if (!$exam || !$exam['is_published']) {
     redirect(BASE_URL . '/student/exams.php');
 }
 
+$now   = time();
+$start = strtotime($exam['start_time']);
+$end   = strtotime($exam['end_time']);
+
+// Server-side validation: prevent starting upcoming or expired exams
+if ($start > 0 && ($now + 60) < $start) {
+    flash('error', 'This exam is upcoming and has not started yet. Please wait for the scheduled start time.');
+    redirect(BASE_URL . '/student/exam_details.php?exam_id=' . $exam_id);
+}
+if ($end > 0 && $now >= $end) {
+    flash('error', 'This exam has expired. New attempts are no longer permitted.');
+    redirect(BASE_URL . '/student/exam_details.php?exam_id=' . $exam_id);
+}
+
 // Check already submitted
 $existing = get_result($user_id, $exam_id);
 if ($existing) {
