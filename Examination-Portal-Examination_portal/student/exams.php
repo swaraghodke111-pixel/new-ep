@@ -27,55 +27,68 @@ require_once dirname(__DIR__) . '/includes/header.php';
 <div class="exam-grid">
     <?php foreach ($exams as $exam):
         $now     = time();
-        $start   = strtotime($exam['start_time']);
         $end     = strtotime($exam['end_time']);
         $taken   = $taken_map[$exam['id']] ?? null;
-        $is_live = ($now >= $start && $now < $end);
-        $is_past = ($now >= $end);
-        $is_soon = (!$is_live && !$is_past);
-        $starts_in = max(0, $start - $now);
+        $is_expired = ($end > 0 && $now >= $end);
+
+        // Calculate validity in days
+        $diff_days = ($end > 0 && $end > $now) ? max(1, (int)ceil(($end - $now) / 86400)) : 0;
     ?>
     <div class="exam-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
             <div class="exam-card-title"><?= h($exam['title']) ?></div>
-            <span id="badge-exam-<?= $exam['id'] ?>"><?= exam_status_badge($exam) ?></span>
-        </div>
-        <div class="exam-card-desc">
-            <?= h(mb_strimwidth($exam['description'] ?? 'No description provided.', 0, 120, '…')) ?>
-        </div>
-        <div class="exam-card-meta">
-            <span class="exam-meta-item">⏱ <?= $exam['duration'] ?> min</span>
-            <span class="exam-meta-item">❓ <?= $exam['question_count'] ?> Questions</span>
-            <span class="exam-meta-item">👤 <?= h($exam['creator_name']) ?></span>
-        </div>
-        <div style="margin-bottom:16px;font-size:0.8rem;color:var(--text-muted);">
-            <div>📅 Start: <?= format_datetime($exam['start_time']) ?></div>
-            <div>🏁 End:   <?= format_datetime($exam['end_time']) ?></div>
+            <?php if ($is_expired): ?>
+                <span class="badge badge-failed">Exam Expired</span>
+            <?php elseif ($taken): ?>
+                <span class="badge badge-passed">Completed</span>
+            <?php else: ?>
+                <span class="badge badge-active">🟢 Active</span>
+            <?php endif; ?>
         </div>
 
-        <div id="btn-container-<?= $exam['id'] ?>">
+        <div class="exam-card-desc" style="margin-bottom:14px;">
+            <?= h(mb_strimwidth($exam['description'] ?? 'No description provided.', 0, 120, '…')) ?>
+        </div>
+
+        <!-- Quiz Details Grid (Pre-exam Information) -->
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; margin-bottom:16px; font-size:0.85rem; line-height:1.7;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px;">
+                <div>📝 <strong>Quiz Name:</strong> <?= h($exam['title']) ?></div>
+                <div>❓ <strong>Total Questions:</strong> <?= $exam['question_count'] ?></div>
+                <div>⏱ <strong>Duration:</strong> <?= $exam['duration'] ?> mins</div>
+                <div>🎯 <strong>Passing Marks:</strong> <?= $exam['pass_marks'] ?><?= (is_numeric($exam['pass_marks']) && $exam['pass_marks'] > 10) ? '%' : ' Marks' ?></div>
+                <div>👤 <strong>Attempts Allowed:</strong> 1 Attempt</div>
+                <div>⏳ <strong>Validity:</strong> 
+                    <?php if ($is_expired): ?>
+                        <span style="color:var(--red); font-weight:600;">Expired</span>
+                    <?php elseif ($diff_days > 1): ?>
+                        <span style="color:var(--green); font-weight:600;">Valid for <?= $diff_days ?> Days</span> (until <?= date('d M Y', $end) ?>)
+                    <?php elseif ($diff_days == 1): ?>
+                        <span style="color:var(--amber); font-weight:600;">Expires Today</span>
+                    <?php else: ?>
+                        <span style="color:var(--green); font-weight:600;">Open Access</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Section -->
+        <div>
         <?php if ($taken): ?>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <span class="badge <?= $taken['passed'] ? 'badge-passed' : 'badge-failed' ?>">
-                    <?= $taken['passed'] ? '✅ Passed' : '❌ Failed' ?> — <?= $taken['percentage'] ?>%
-                </span>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button class="btn btn-outline" disabled style="flex:1; justify-content:center; cursor:not-allowed; opacity:0.65;">
+                    🔒 Exam Completed
+                </button>
                 <a href="results.php?exam_id=<?= $exam['id'] ?>" class="btn btn-outline btn-sm">View Result</a>
             </div>
-        <?php elseif ($is_live): ?>
-            <a href="take_exam.php?exam_id=<?= $exam['id'] ?>" class="btn btn-success" style="width:100%;justify-content:center;">
-                🚀 Start Exam Now
-            </a>
-        <?php elseif ($is_soon): ?>
-            <button id="soon-btn-<?= $exam['id'] ?>" class="btn btn-warning live-countdown-btn"
-                    data-seconds="<?= $starts_in ?>"
-                    data-exam-id="<?= $exam['id'] ?>"
-                    style="width:100%;justify-content:center;font-weight:600;">
-                ⏳ Starts in: <?= sprintf('%02d:%02d:%02d', floor($starts_in/3600), floor(($starts_in%3600)/60), $starts_in%60) ?>
+        <?php elseif ($is_expired): ?>
+            <button class="btn btn-outline" disabled style="width:100%; justify-content:center; cursor:not-allowed; opacity:0.65;">
+                🔒 Exam Expired
             </button>
         <?php else: ?>
-            <button class="btn btn-outline" disabled style="width:100%;justify-content:center;cursor:not-allowed;">
-                🔒 Exam Ended
-            </button>
+            <a href="take_exam.php?exam_id=<?= $exam['id'] ?>" class="btn btn-success" style="width:100%; justify-content:center; font-weight:700; padding:10px 16px;">
+                🚀 Start Exam
+            </a>
         <?php endif; ?>
         </div>
     </div>
@@ -92,38 +105,5 @@ require_once dirname(__DIR__) . '/includes/header.php';
     </div>
 </div>
 <?php endif; ?>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const countdownBtns = document.querySelectorAll('.live-countdown-btn');
-    countdownBtns.forEach(function(btn) {
-        let secondsLeft = parseInt(btn.getAttribute('data-seconds')) || 0;
-        const examId = btn.getAttribute('data-exam-id');
-
-        const timer = setInterval(function() {
-            if (secondsLeft <= 0) {
-                clearInterval(timer);
-                // Auto-unlock Start Exam button
-                const container = document.getElementById('btn-container-' + examId);
-                const badge = document.getElementById('badge-exam-' + examId);
-
-                if (container) {
-                    container.innerHTML = '<a href="take_exam.php?exam_id=' + examId + '" class="btn btn-success" style="width:100%;justify-content:center;">🚀 Start Exam Now</a>';
-                }
-                if (badge) {
-                    badge.innerHTML = '<span class="badge badge-active">Active</span>';
-                }
-            } else {
-                secondsLeft--;
-                const hrs = Math.floor(secondsLeft / 3600);
-                const mins = Math.floor((secondsLeft % 3600) / 60);
-                const secs = secondsLeft % 60;
-                const pad = (n) => n.toString().padStart(2, '0');
-                btn.innerText = '⏳ Starts in: ' + (hrs > 0 ? pad(hrs) + ':' : '') + pad(mins) + ':' + pad(secs);
-            }
-        }, 1000);
-    });
-});
-</script>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
