@@ -41,10 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_task']) && $ta
     }
 }
 
-// Fetch all tasks with student's submission status
+// Fetch all tasks with student's submission status and assigning faculty name
 $stmt = $pdo->prepare("
-    SELECT t.*, ts.status AS sub_status, ts.grade, ts.feedback, ts.submitted_at
+    SELECT t.*, u.name AS faculty_name, ts.status AS sub_status, ts.grade, ts.feedback, ts.submitted_at
     FROM tasks t
+    LEFT JOIN users u ON u.id = t.created_by
     LEFT JOIN task_submissions ts ON ts.task_id = t.id AND ts.user_id = ?
     ORDER BY t.deadline ASC
 ");
@@ -99,7 +100,10 @@ require_once dirname(__DIR__) . '/includes/header.php';
                         <?php foreach ($tasks as $t): ?>
                         <tr style="cursor:pointer;" onclick="location.href='?task_id=<?= $t['id'] ?>'">
                             <td>
-                                <strong><?= h($t['title']) ?></strong>
+                                <div><strong><?= h($t['title']) ?></strong></div>
+                                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+                                    👨‍🏫 Assigned by: <strong><?= h($t['faculty_name'] ?? 'Faculty') ?></strong>
+                                </div>
                             </td>
                             <td style="font-size:0.8rem; <?= strtotime($t['deadline']) < time() && $t['sub_status']!=='graded' ? 'color:#ef4444;' : '' ?>">
                                 <?= format_datetime($t['deadline']) ?>
@@ -138,7 +142,10 @@ require_once dirname(__DIR__) . '/includes/header.php';
             <div class="card-body">
                 <div style="margin-bottom: 20px;">
                     <h4><?= h($selected_task['title']) ?></h4>
-                    <p style="font-size:0.9rem; color:var(--text-muted); margin-top:6px;"><?= nl2br(h($selected_task['description'])) ?></p>
+                    <div style="font-size:0.85rem; color:var(--purple-3); font-weight:600; margin-top:4px;">
+                        👨‍🏫 Assigned by: <?= h($selected_task['faculty_name'] ?? 'Faculty') ?>
+                    </div>
+                    <p style="font-size:0.9rem; color:var(--text-muted); margin-top:8px;"><?= nl2br(h($selected_task['description'])) ?></p>
                 </div>
                 <div style="font-size:0.85rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; display:flex; justify-content:space-between;">
                     <div>📅 Deadline: <strong><?= format_datetime($selected_task['deadline']) ?></strong></div>

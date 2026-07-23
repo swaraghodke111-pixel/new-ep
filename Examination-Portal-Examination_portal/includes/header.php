@@ -39,6 +39,9 @@ $role = get_role();
             <a href="<?= BASE_URL ?>/student/exams.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='exams.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-file-signature"></i></span> Available Exams
             </a>
+            <a href="<?= BASE_URL ?>/student/quiz_exams.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='quiz_exams.php')?'active':'' ?>">
+                <span class="nav-icon"><i class="fa-solid fa-pen-to-square"></i></span> Quiz Exams
+            </a>
             <a href="<?= BASE_URL ?>/student/coding_problems.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='coding_problems.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-code"></i></span> Coding Exams
             </a>
@@ -53,17 +56,11 @@ $role = get_role();
             <a href="<?= BASE_URL ?>/faculty/dashboard.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='dashboard.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-house"></i></span> Dashboard
             </a>
-            <a href="<?= BASE_URL ?>/faculty/create_exam.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='create_exam.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-plus"></i></span> Create Exam
-            </a>
             <a href="<?= BASE_URL ?>/faculty/add_questions.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='add_questions.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-circle-question"></i></span> Add Questions
             </a>
             <a href="<?= BASE_URL ?>/faculty/schedule_exam.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='schedule_exam.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span> Schedule Exam
-            </a>
-            <a href="<?= BASE_URL ?>/faculty/manage_coding_problems.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='manage_coding_problems.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-code"></i></span> Coding Problems
             </a>
             <a href="<?= BASE_URL ?>/faculty/manage_tasks.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='manage_tasks.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-list-check"></i></span> Manage Tasks
@@ -82,16 +79,10 @@ $role = get_role();
                 <span class="nav-icon"><i class="fa-solid fa-house"></i></span> Dashboard
             </a>
             <a href="<?= BASE_URL ?>/admin/manage_users.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='manage_users.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Manage Users
+                <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Student List
             </a>
             <a href="<?= BASE_URL ?>/admin/faculty.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='faculty.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-chalkboard-user"></i></span> Faculty Management
-            </a>
-            <a href="<?= BASE_URL ?>/admin/create_exam.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='create_exam.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-plus"></i></span> Create Exam
-            </a>
-            <a href="<?= BASE_URL ?>/admin/add_questions.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='add_questions.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-circle-question"></i></span> Add Questions
             </a>
             <a href="<?= BASE_URL ?>/admin/schedule_exam.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='schedule_exam.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span> Schedule Exam
@@ -99,40 +90,37 @@ $role = get_role();
             <a href="<?= BASE_URL ?>/admin/publish_exam.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='publish_exam.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-upload"></i></span> Publish Exam
             </a>
+            <a href="<?= BASE_URL ?>/admin/add_questions.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='add_questions.php')?'active':'' ?>">
+                <span class="nav-icon"><i class="fa-solid fa-circle-question"></i></span> Add Questions
+            </a>
             <a href="<?= BASE_URL ?>/admin/view_results.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='view_results.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-trophy"></i></span> View Results
-            </a>
-            <a href="<?= BASE_URL ?>/admin/reports.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='reports.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-file-lines"></i></span> Reports
             </a>
             <a href="<?= BASE_URL ?>/admin/settings.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='settings.php')?'active':'' ?>">
                 <span class="nav-icon"><i class="fa-solid fa-sliders"></i></span> System Settings
             </a>
-            <div class="sidebar-title">Academic Management</div>
-            <a href="<?= BASE_URL ?>/admin/academic/departments.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='departments.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-building"></i></span> Departments
-            </a>
-            <a href="<?= BASE_URL ?>/admin/academic/programs.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='programs.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-award"></i></span> Programs
-            </a>
-            <a href="<?= BASE_URL ?>/admin/academic/years.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='years.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-calendar"></i></span> Academic Years
-            </a>
-            <a href="<?= BASE_URL ?>/admin/academic/semesters.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='semesters.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-school"></i></span> Semesters
-            </a>
-            <a href="<?= BASE_URL ?>/admin/academic/sections.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='sections.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-users-rectangle"></i></span> Sections
-            </a>
-            <a href="<?= BASE_URL ?>/admin/academic/subjects.php" class="nav-link <?= (basename($_SERVER['PHP_SELF'])==='subjects.php')?'active':'' ?>">
-                <span class="nav-icon"><i class="fa-solid fa-book"></i></span> Subjects
-            </a>
+
         <?php endif; ?>
     </nav>
 
+    <?php
+    $current_user_pic = '';
+    if (is_logged_in()) {
+        $u_data = get_user_by_id((int)$_SESSION['user_id']);
+        if (!empty($u_data['profile_pic']) && file_exists(dirname(__DIR__) . '/' . $u_data['profile_pic'])) {
+            $current_user_pic = BASE_URL . '/' . $u_data['profile_pic'];
+        }
+    }
+    ?>
     <div class="sidebar-footer">
         <div class="user-info" onclick="location.href='<?= BASE_URL ?>/profile.php'" style="cursor:pointer;" title="View Profile">
-            <div class="user-avatar"><?= strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)) ?></div>
+            <div class="user-avatar" style="overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                <?php if ($current_user_pic): ?>
+                    <img src="<?= $current_user_pic ?>" alt="Profile" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">
+                <?php else: ?>
+                    <?= strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)) ?>
+                <?php endif; ?>
+            </div>
             <div>
                 <div class="user-name"><?= h($_SESSION['user_name'] ?? '') ?></div>
                 <div class="user-email"><?= h($_SESSION['user_email'] ?? '') ?></div>
@@ -150,11 +138,7 @@ $role = get_role();
         <div class="topbar-title"><?= h($page_title) ?></div>
         
         <div class="topbar-actions">
-            <!-- Navbar Search -->
-            <div class="navbar-search">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" placeholder="Search exams or tasks...">
-            </div>
+
 
             <!-- Notifications -->
             <div class="notif-btn" onclick="toggleNotifications()" title="Notifications">
@@ -167,7 +151,13 @@ $role = get_role();
             <!-- Profile Dropdown -->
             <div class="profile-dropdown-container">
                 <div class="profile-toggle" onclick="toggleProfileDropdown(event)">
-                    <div class="profile-avatar"><?= strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)) ?></div>
+                    <div class="profile-avatar" style="overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                        <?php if ($current_user_pic): ?>
+                            <img src="<?= $current_user_pic ?>" alt="Profile" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">
+                        <?php else: ?>
+                            <?= strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)) ?>
+                        <?php endif; ?>
+                    </div>
                     <span class="profile-name-text"><?= h($_SESSION['user_name'] ?? '') ?></span>
                     <i class="fa-solid fa-chevron-down" style="font-size: 0.75rem; color: var(--text-muted);"></i>
                 </div>

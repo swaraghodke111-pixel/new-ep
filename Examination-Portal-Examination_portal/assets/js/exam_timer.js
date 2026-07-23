@@ -14,7 +14,7 @@
 
     // ── Init ─────────────────────────────────────────────────────────────────
     function init() {
-        const timerEl = document.getElementById('exam-timer');
+        const timerEl = document.getElementById('timer-display');
         if (!timerEl) return;
 
         totalSeconds     = parseInt(timerEl.dataset.seconds, 10);

@@ -2,7 +2,7 @@
 // admin/publish_exam.php — Admin tool to toggle publishing of exams
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
-require_role('admin');
+require_role('admin', 'faculty');
 
 global $pdo;
 

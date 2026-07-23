@@ -28,17 +28,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $user = get_user_by_email($email);
         if ($user && password_verify($password, $user['password'])) {
-            if (!empty($selected_role) && $user['role'] !== $selected_role) {
-                $error = 'Access denied. Account is not configured with ' . ucfirst($selected_role) . ' privileges.';
-            } elseif (!$user['is_verified']) {
-                http_response_code(403);
-                $error = 'Please verify your email address before logging in.';
-            } else {
-                login_user($user);
-                send_notification($user['id'], 'Welcome back, ' . $user['name'] . '! You have logged in successfully.');
-                redirect(get_dashboard_url());
-                exit;
+            // Auto-verify account if not marked verified
+            if (!$user['is_verified'] || !$user['email_verified']) {
+                global $pdo;
+                $pdo->prepare("UPDATE users SET is_verified = 1, email_verified = 1 WHERE id = ?")->execute([$user['id']]);
+                $user['is_verified'] = 1;
+                $user['email_verified'] = 1;
             }
+
+            login_user($user);
+            send_notification($user['id'], 'Welcome back, ' . $user['name'] . '! You have logged in successfully.');
+            redirect(get_dashboard_url());
+            exit;
         } else {
             $error = 'Invalid email or password. Please try again.';
         }
@@ -221,6 +222,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button class="modal-close-btn" onclick="closeHelpModal()">&times;</button>
         </div>
         <div class="modal-body">
+            <!-- Ask Super Admin for Help Box -->
+            <div style="background: rgba(166, 124, 82, 0.08); border: 1.5px solid #A67C52; padding: 18px; border-radius: 12px; margin-bottom: 24px;">
+                <h4 style="margin-bottom: 6px; color: #7A5C48; display: flex; align-items: center; gap: 8px;">
+                    💬 Ask Super Admin for Help
+                </h4>
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+                    Have a question or issue? Type your query below to send a direct help request notification to the Super Admin.
+                </p>
+                <form id="help-request-form" onsubmit="submitHelpRequest(event)">
+                    <?php if (!is_logged_in()): ?>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                            <input type="text" id="help-user-name" class="form-control" placeholder="Your Name" required style="font-size: 0.85rem;">
+                            <input type="email" id="help-user-email" class="form-control" placeholder="Your Email Address" required style="font-size: 0.85rem;">
+                        </div>
+                    <?php endif; ?>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="help-query-input" class="form-control" placeholder="Type your help question or query..." required style="flex: 1; font-size: 0.85rem;">
+                        <button type="submit" class="btn btn-primary" id="help-submit-btn" style="background: #A67C52; border-color: #A67C52; white-space: nowrap; font-size: 0.85rem;">
+                            Send Request 🚀
+                        </button>
+                    </div>
+                </form>
+                <div id="help-form-status" style="margin-top: 10px; display: none; font-size: 0.85rem; padding: 8px 12px; border-radius: 8px;"></div>
+            </div>
+
             <h4>Login Help</h4>
             <p>Select your role card (Student or Admin/Faculty), fill in your registered email and password, and click Sign In.</p>
             
@@ -337,6 +363,61 @@ function closeHelpModal() {
 function closeHelpModalOnOutsideClick(e) {
     if (e.target.id === 'helpModal') {
         closeHelpModal();
+    }
+}
+
+async function submitHelpRequest(e) {
+    e.preventDefault();
+    const queryInput = document.getElementById('help-query-input');
+    const nameInput = document.getElementById('help-user-name');
+    const emailInput = document.getElementById('help-user-email');
+    const submitBtn = document.getElementById('help-submit-btn');
+    const statusDiv = document.getElementById('help-form-status');
+
+    if (!queryInput || !queryInput.value.trim()) return;
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Sending...';
+
+    const formData = new FormData();
+    formData.append('query', queryInput.value.trim());
+    if (nameInput) formData.append('name', nameInput.value.trim());
+    if (emailInput) formData.append('email', emailInput.value.trim());
+
+    try {
+        const response = await fetch('<?= BASE_URL ?>/includes/send_help.php', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        statusDiv.style.display = 'block';
+        if (data.success) {
+            statusDiv.className = 'alert alert-success';
+            statusDiv.style.background = 'rgba(16,185,129,0.15)';
+            statusDiv.style.color = 'var(--green)';
+            statusDiv.style.border = '1px solid #10b981';
+            statusDiv.innerHTML = '✅ ' + data.message;
+            queryInput.value = '';
+            if (nameInput) nameInput.value = '';
+            if (emailInput) emailInput.value = '';
+        } else {
+            statusDiv.className = 'alert alert-error';
+            statusDiv.style.background = 'rgba(239,68,68,0.15)';
+            statusDiv.style.color = 'var(--red)';
+            statusDiv.style.border = '1px solid #ef4444';
+            statusDiv.innerHTML = '❌ ' + (data.message || 'Failed to send request.');
+        }
+    } catch (err) {
+        statusDiv.style.display = 'block';
+        statusDiv.className = 'alert alert-error';
+        statusDiv.style.background = 'rgba(239,68,68,0.15)';
+        statusDiv.style.color = 'var(--red)';
+        statusDiv.style.border = '1px solid #ef4444';
+        statusDiv.innerHTML = '❌ An error occurred while sending your request.';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Send Request 🚀';
     }
 }
 </script>

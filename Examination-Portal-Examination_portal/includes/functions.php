@@ -56,14 +56,14 @@ function register_user(string $name, string $email, string $password, string $ro
     global $pdo;
     $hash  = password_hash($password, PASSWORD_DEFAULT);
     
-    // Securely generate verification token & expiry (24 hours)
+    // Securely generate verification token
     $verification_token = bin2hex(random_bytes(32));
     $token_expires_at   = date('Y-m-d H:i:s', time() + 86400);
     
-    $stmt  = $pdo->prepare("INSERT INTO users (name, email, password, role, is_verified, verification_token, token_expires_at) VALUES (?,?,?,?,0,?,?)");
+    // Set is_verified = 1 and email_verified = 1 by default for instant student access
+    $stmt  = $pdo->prepare("INSERT INTO users (name, email, password, role, is_verified, email_verified, verification_token, token_expires_at) VALUES (?,?,?,?,1,1,?,?)");
     if ($stmt->execute([$name, $email, $hash, $role, $verification_token, $token_expires_at])) {
         $user_id = (int)$pdo->lastInsertId();
-        send_smtp_verification_email($user_id, $email, $verification_token);
         return $user_id;
     }
     return false;

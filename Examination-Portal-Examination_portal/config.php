@@ -3,12 +3,13 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+date_default_timezone_set('Asia/Kolkata');
 
 define('DB_HOST', '127.0.0.1');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_NAME', 'exam_portal');
-define('BASE_URL', 'http://localhost:8000');
+define('BASE_URL', 'http://localhost:8001');
 
 // SMTP Configuration
 define('SMTP_HOST', 'smtp.gmail.com');

@@ -87,10 +87,10 @@ require_once dirname(__DIR__) . '/includes/header.php';
 <!-- Exam Selector -->
 <div class="card mb-24">
     <div class="card-body">
-        <form method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+        <form method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;width:100%;margin:0;">
             <div class="form-group mb-0" style="flex:1;min-width:200px;">
                 <label class="form-label">Select Exam</label>
-                <select name="exam_id" class="form-control" onchange="this.form.submit()">
+                <select name="exam_id" class="form-control" onchange="this.form.submit()" style="height: 42px;">
                     <option value="">— Choose an exam —</option>
                     <?php foreach ($my_exams as $e): ?>
                         <option value="<?= $e['id'] ?>" <?= $exam_id === (int)$e['id'] ? 'selected' : '' ?>>
@@ -99,7 +99,6 @@ require_once dirname(__DIR__) . '/includes/header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Load Questions</button>
         </form>
     </div>
 </div>

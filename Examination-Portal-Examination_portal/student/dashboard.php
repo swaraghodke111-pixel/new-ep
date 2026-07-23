@@ -35,28 +35,21 @@ require_once dirname(__DIR__) . '/includes/header.php';
 
 <!-- Stats -->
 <div class="stats-grid">
-    <div class="stat-card purple">
+    <div class="stat-card purple" onclick="location.href='exams.php'" style="cursor: pointer;">
         <span class="stat-icon">📋</span>
         <div>
             <div class="stat-label">Available Exams</div>
             <div class="stat-value"><?= $total_exams ?></div>
         </div>
     </div>
-    <div class="stat-card teal">
-        <span class="stat-icon">✅</span>
-        <div>
-            <div class="stat-label">Exams Taken</div>
-            <div class="stat-value"><?= $taken ?></div>
-        </div>
-    </div>
-    <div class="stat-card green">
+    <div class="stat-card green" onclick="location.href='results.php'" style="cursor: pointer;">
         <span class="stat-icon">🏆</span>
         <div>
             <div class="stat-label">Passed</div>
             <div class="stat-value"><?= $passed ?></div>
         </div>
     </div>
-    <div class="stat-card amber">
+    <div class="stat-card amber" onclick="location.href='results.php'" style="cursor: pointer;">
         <span class="stat-icon">📊</span>
         <div>
             <div class="stat-label">Avg Score</div>

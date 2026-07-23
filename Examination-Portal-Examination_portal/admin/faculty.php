@@ -2,7 +2,7 @@
 // admin/faculty.php — Faculty Management Dashboard
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
-require_role('admin');
+require_role('admin', 'faculty');
 
 global $pdo;
 
@@ -218,18 +218,89 @@ require_once dirname(__DIR__) . '/includes/header.php';
 <?php if ($fs): ?><div class="alert alert-success">✅ <?= h($fs) ?></div><?php endif; ?>
 <?php if ($fe): ?><div class="alert alert-error">❌ <?= h($fe) ?></div><?php endif; ?>
 
+<style>
+.search-container {
+    position: relative;
+    flex: 2;
+    min-width: 200px;
+}
+.clear-search-tooltip {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-block;
+}
+.clear-search-tooltip .tooltip-text {
+    visibility: hidden;
+    width: 90px;
+    background-color: #1e1b4b; /* Deep indigo background */
+    color: #ffffff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 6px 10px;
+    position: absolute;
+    z-index: 10;
+    bottom: 130%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.2s, bottom 0.2s;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border: 1px solid #4338ca;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.clear-search-tooltip .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: #4338ca transparent transparent transparent;
+}
+.clear-search-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+    bottom: 145%;
+}
+.clear-btn {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.clear-btn:hover {
+    color: var(--red);
+}
+</style>
+
 <!-- Search & Filters -->
 <div class="card mb-24">
     <div class="card-body">
-        <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-            <div class="form-group mb-0" style="flex:2;min-width:200px;">
+        <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;width:100%;margin:0;">
+            <div class="search-container">
                 <label class="form-label">Search</label>
-                <input type="text" name="search" class="form-control" placeholder="Search by name, email or Faculty ID…" value="<?= h($search) ?>">
+                <div style="position:relative;">
+                    <input type="text" name="search" class="form-control" placeholder="Search by name, email or Faculty ID (Press Enter)..." value="<?= h($search) ?>" style="padding-right: 45px; width: 100%; height: 42px;">
+                    <?php if ($search !== ''): ?>
+                        <div class="clear-search-tooltip">
+                            <a href="faculty.php" class="clear-btn">✖</a>
+                            <span class="tooltip-text">Clear Search</span>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
             
             <div class="form-group mb-0" style="flex:1;min-width:140px;">
                 <label class="form-label">Department</label>
-                <select name="department_id" class="form-control">
+                <select name="department_id" class="form-control" onchange="this.form.submit()" style="height: 42px;">
                     <option value="">All Departments</option>
                     <?php foreach ($departments as $dept): ?>
                         <option value="<?= $dept['id'] ?>" <?= $dept_filter === (int)$dept['id'] ? 'selected' : '' ?>><?= h($dept['name']) ?> (<?= h($dept['code']) ?>)</option>
@@ -239,7 +310,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
 
             <div class="form-group mb-0" style="flex:1;min-width:140px;">
                 <label class="form-label">Designation</label>
-                <select name="designation" class="form-control">
+                <select name="designation" class="form-control" onchange="this.form.submit()" style="height: 42px;">
                     <option value="">All Designations</option>
                     <?php foreach ($designations as $desig): ?>
                         <option value="<?= h($desig) ?>" <?= $desig_filter === $desig ? 'selected' : '' ?>><?= h($desig) ?></option>
@@ -249,16 +320,13 @@ require_once dirname(__DIR__) . '/includes/header.php';
 
             <div class="form-group mb-0" style="flex:1;min-width:120px;">
                 <label class="form-label">Status</label>
-                <select name="status" class="form-control">
+                <select name="status" class="form-control" onchange="this.form.submit()" style="height: 42px;">
                     <option value="">All Statuses</option>
                     <option value="active" <?= $status_filter === 'active' ? 'selected' : '' ?>>Active</option>
                     <option value="inactive" <?= $status_filter === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                     <option value="suspended" <?= $status_filter === 'suspended' ? 'selected' : '' ?>>Suspended</option>
                 </select>
             </div>
-
-            <button type="submit" class="btn btn-primary">🔍 Filter</button>
-            <a href="faculty.php" class="btn btn-outline">Reset</a>
         </form>
     </div>
 </div>

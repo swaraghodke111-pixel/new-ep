@@ -55,8 +55,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['grade_submission']) &
     }
 }
 
-// Fetch all tasks
-$tasks = $pdo->query("SELECT * FROM tasks ORDER BY deadline ASC")->fetchAll();
+// Fetch all tasks with submission counts
+$tasks = $pdo->query("
+    SELECT t.*, (SELECT COUNT(*) FROM task_submissions WHERE task_id = t.id) AS sub_count
+    FROM tasks t
+    ORDER BY t.deadline ASC
+")->fetchAll();
+
+// Fetch all student submissions system-wide
+$all_submissions = $pdo->query("
+    SELECT ts.*, u.name AS student_name, u.email AS student_email, t.title AS task_title, t.id AS task_id
+    FROM task_submissions ts
+    JOIN users u ON ts.user_id = u.id
+    JOIN tasks t ON ts.task_id = t.id
+    ORDER BY ts.submitted_at DESC
+")->fetchAll();
 
 // Fetch submissions for selected task
 $submissions = [];
@@ -132,7 +145,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
 
         <!-- Task List -->
         <div class="card">
-            <div class="card-header">
+            <div class="card-header flex-between">
                 <h3>📑 Existing Tasks</h3>
             </div>
             <div class="card-body" style="padding:0;">
@@ -149,7 +162,12 @@ require_once dirname(__DIR__) . '/includes/header.php';
                         <tbody>
                             <?php foreach ($tasks as $t): ?>
                             <tr>
-                                <td><strong><?= h($t['title']) ?></strong></td>
+                                <td>
+                                    <strong><?= h($t['title']) ?></strong>
+                                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+                                        📥 <?= $t['sub_count'] ?> submission<?= $t['sub_count'] == 1 ? '' : 's' ?>
+                                    </div>
+                                </td>
                                 <td style="font-size:0.8rem;"><?= format_datetime($t['deadline']) ?></td>
                                 <td>
                                     <a href="?task_id=<?= $t['id'] ?>" class="btn btn-outline btn-sm">Submissions</a>
@@ -212,8 +230,9 @@ require_once dirname(__DIR__) . '/includes/header.php';
         <?php elseif ($task_id > 0): ?>
             <!-- Submissions list for selected task -->
             <div class="card">
-                <div class="card-header">
-                    <h3>👥 Submissions for Task</h3>
+                <div class="card-header flex-between">
+                    <h3>👥 Submissions for Selected Task</h3>
+                    <a href="manage_tasks.php" class="btn btn-outline btn-sm">View All Submissions</a>
                 </div>
                 <div class="card-body" style="padding:0;">
                     <?php if ($submissions): ?>
@@ -246,7 +265,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
                                     </td>
                                     <td>
                                         <a href="?task_id=<?= $task_id ?>&sub_id=<?= $s['id'] ?>" class="btn btn-primary btn-sm">
-                                            <?= $s['status'] === 'graded' ? 'Edit Grade' : 'Grade' ?>
+                                            <?= $s['status'] === 'graded' ? 'Edit Grade' : 'Grade & Review' ?>
                                         </a>
                                     </td>
                                 </tr>
@@ -257,21 +276,68 @@ require_once dirname(__DIR__) . '/includes/header.php';
                     <?php else: ?>
                         <div class="empty-state">
                             <span class="empty-icon">📭</span>
-                            <h3>No submissions yet</h3>
-                            <p>Once students submit work, it will appear here for grading.</p>
+                            <h3>No submissions for this task yet</h3>
+                            <p>Once students submit work for this task, it will appear here.</p>
                         </div>
                     <?php endif; ?>
                 </div>
             </div>
         <?php else: ?>
-            <!-- Default placeholder -->
+            <!-- Default View: All Submitted Student Tasks -->
             <div class="card">
-                <div class="card-body">
-                    <div class="empty-state">
-                        <span class="empty-icon">👈</span>
-                        <h3>Manage Submissions</h3>
-                        <p>Click on the "Submissions" button next to any assignment to view student deliverables and perform grading evaluation.</p>
+                <div class="card-header">
+                    <h3>📥 Submitted Tasks by Students</h3>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    <?php if ($all_submissions): ?>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Task Title</th>
+                                    <th>Submitted At</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($all_submissions as $s): ?>
+                                <tr>
+                                    <td>
+                                        <div><strong><?= h($s['student_name']) ?></strong></div>
+                                        <span style="font-size:0.75rem; color:var(--text-muted);"><?= h($s['student_email']) ?></span>
+                                    </td>
+                                    <td>
+                                        <strong><?= h($s['task_title']) ?></strong>
+                                    </td>
+                                    <td style="font-size:0.8rem;"><?= format_datetime($s['submitted_at']) ?></td>
+                                    <td>
+                                        <?php
+                                        if ($s['status'] === 'graded') {
+                                            echo '<span class="badge badge-passed">Graded (' . h($s['grade']) . ')</span>';
+                                        } else {
+                                            echo '<span class="badge badge-failed">Pending Grade</span>';
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <a href="?task_id=<?= $s['task_id'] ?>&sub_id=<?= $s['id'] ?>" class="btn btn-primary btn-sm">
+                                            <?= $s['status'] === 'graded' ? 'Edit Grade' : 'Review & Grade →' ?>
+                                        </a>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
+                    <?php else: ?>
+                        <div class="empty-state">
+                            <span class="empty-icon">📭</span>
+                            <h3>No student submissions yet</h3>
+                            <p>When students submit answers to assigned tasks, they will appear here automatically for your review.</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         <?php endif; ?>

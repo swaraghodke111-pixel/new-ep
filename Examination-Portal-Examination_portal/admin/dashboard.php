@@ -46,28 +46,28 @@ require_once dirname(__DIR__) . '/includes/header.php';
 
 <!-- Stats Grid -->
 <div class="stats-grid">
-    <div class="stat-card purple">
+    <div class="stat-card purple" onclick="location.href='manage_users.php'" style="cursor: pointer;">
         <span class="stat-icon">👥</span>
         <div>
             <div class="stat-label">Total Students</div>
             <div class="stat-value"><?= $total_students ?></div>
         </div>
     </div>
-    <div class="stat-card teal">
+    <div class="stat-card teal" onclick="location.href='faculty.php'" style="cursor: pointer;">
         <span class="stat-icon">👨‍🏫</span>
         <div>
             <div class="stat-label">Total Faculty</div>
             <div class="stat-value"><?= $total_faculty ?></div>
         </div>
     </div>
-    <div class="stat-card green">
+    <div class="stat-card green" onclick="location.href='publish_exam.php'" style="cursor: pointer;">
         <span class="stat-icon">📋</span>
         <div>
             <div class="stat-label">Total Exams</div>
             <div class="stat-value"><?= $total_exams ?></div>
         </div>
     </div>
-    <div class="stat-card amber">
+    <div class="stat-card amber" onclick="location.href='view_results.php'" style="cursor: pointer;">
         <span class="stat-icon">🏆</span>
         <div>
             <div class="stat-label">Total Attempts</div>
@@ -126,7 +126,6 @@ require_once dirname(__DIR__) . '/includes/header.php';
     <div class="card">
         <div class="card-header">
             <h3>👤 Newly Registered Users</h3>
-            <a href="manage_users.php" class="btn btn-outline btn-sm">Manage Users</a>
         </div>
         <div class="card-body" style="padding:0;">
             <?php if ($recent_users): ?>

@@ -100,10 +100,122 @@ require_once dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?php else: ?>
-<!-- ── Results List ──────────────────────────────────────────────────────── -->
-<?php if ($results): ?>
+<!-- ── Results Summary & Performance Analytics ────────────────────────────── -->
+<?php if ($results): 
+    $total_given = count($results);
+    $total_obtained = 0;
+    $total_possible = 0;
+    $passed_count = 0;
+    $failed_count = 0;
+    $sum_percentage = 0;
+
+    foreach ($results as $r) {
+        $total_obtained += (int)$r['score'];
+        $total_possible += (int)$r['total'];
+        $sum_percentage += (float)$r['percentage'];
+        if ($r['passed']) {
+            $passed_count++;
+        } else {
+            $failed_count++;
+        }
+    }
+
+    $overall_avg_percentage = $total_given > 0 ? round($sum_percentage / $total_given, 1) : 0;
+    $total_missed = max(0, $total_possible - $total_obtained);
+
+    // Line graph data in chronological order (oldest to newest)
+    $line_labels = [];
+    $line_scores = [];
+    $line_passmarks = [];
+    foreach (array_reverse($results) as $r) {
+        $line_labels[]    = mb_strimwidth($r['title'], 0, 25, '…');
+        $line_scores[]    = (float)$r['percentage'];
+        $line_passmarks[] = (float)($r['pass_percentage'] ?? 40);
+    }
+?>
+
+<!-- Summary Stats Grid -->
+<div class="stats-grid mb-24">
+    <div class="stat-card purple">
+        <span class="stat-icon">📋</span>
+        <div>
+            <div class="stat-label">Exams Completed</div>
+            <div class="stat-value"><?= $total_given ?></div>
+        </div>
+    </div>
+    <div class="stat-card green">
+        <span class="stat-icon">🎯</span>
+        <div>
+            <div class="stat-label">Total Score</div>
+            <div class="stat-value"><?= $total_obtained ?> <span style="font-size:1rem;color:var(--text-muted);">/ <?= $total_possible ?></span></div>
+        </div>
+    </div>
+    <div class="stat-card teal">
+        <span class="stat-icon">📊</span>
+        <div>
+            <div class="stat-label">Overall Average</div>
+            <div class="stat-value"><?= $overall_avg_percentage ?>%</div>
+        </div>
+    </div>
+    <div class="stat-card amber">
+        <span class="stat-icon">🏆</span>
+        <div>
+            <div class="stat-label">Passed / Failed</div>
+            <div class="stat-value"><?= $passed_count ?> <span style="font-size:0.9rem;color:var(--text-muted);">Pass</span> / <?= $failed_count ?> <span style="font-size:0.9rem;color:var(--red);">Fail</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Line Graph Card -->
+<div class="card mb-24" style="margin-top:24px;">
+    <div class="card-header">
+        <h3>📈 Student Performance & Score Progress Trend</h3>
+    </div>
+    <div class="card-body">
+        <div style="height: 280px; position: relative;">
+            <canvas id="progressLineChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Pie Charts Row -->
+<div class="grid-2 mb-24" style="margin-top:24px;">
+    <!-- Pie Chart Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3>🥧 Overall Average Percentage Breakdown</h3>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
+            <div style="width:240px;height:240px;position:relative;">
+                <canvas id="overallPieChart"></canvas>
+            </div>
+            <div style="margin-top:16px;text-align:center;font-weight:600;font-size:0.95rem;color:var(--text-main);">
+                Overall Score: <span style="color:var(--purple-3);"><?= $overall_avg_percentage ?>%</span>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">(<?= $total_obtained ?> Marks Scored out of <?= $total_possible ?> Total)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exam Pass/Fail Ratio Donut Chart -->
+    <div class="card">
+        <div class="card-header">
+            <h3>🍩 Pass vs. Fail Performance Ratio</h3>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
+            <div style="width:240px;height:240px;position:relative;">
+                <canvas id="passFailChart"></canvas>
+            </div>
+            <div style="margin-top:16px;text-align:center;font-weight:600;font-size:0.95rem;color:var(--text-main);">
+                Success Rate: <span style="color:var(--green);"><?= $total_given > 0 ? round(($passed_count / $total_given) * 100, 1) : 0 ?>%</span>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;"><?= $passed_count ?> Passed &bull; <?= $failed_count ?> Failed</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results History Table -->
 <div class="card">
-    <div class="card-header"><h3>🏆 All Results</h3></div>
+    <div class="card-header"><h3>🏆 Examination History</h3></div>
     <div class="table-wrap">
         <table class="table">
             <thead>
@@ -140,6 +252,122 @@ require_once dirname(__DIR__) . '/includes/header.php';
         </table>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // 1. Line Graph for Student Progress Trend
+    const lineCtx = document.getElementById('progressLineChart').getContext('2d');
+    new Chart(lineCtx, {
+        type: 'line',
+        data: {
+            labels: <?= json_encode($line_labels) ?>,
+            datasets: [
+                {
+                    label: 'Score Percentage (%)',
+                    data: <?= json_encode($line_scores) ?>,
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointBackgroundColor: '#6366f1',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 8
+                },
+                {
+                    label: 'Required Pass Mark (%)',
+                    data: <?= json_encode($line_passmarks) ?>,
+                    borderColor: '#ef4444',
+                    borderDash: [6, 6],
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#ef4444'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#94a3b8' }
+                },
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#94a3b8' }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: '#cbd5e1', font: { size: 12 } }
+                }
+            }
+        }
+    });
+
+    // 2. Pie Chart for Overall Marks / Average Percentage
+    const pieCtx = document.getElementById('overallPieChart').getContext('2d');
+    new Chart(pieCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Marks Obtained', 'Marks Missed'],
+            datasets: [{
+                data: [<?= $total_obtained ?>, <?= $total_missed ?>],
+                backgroundColor: ['#6366f1', 'rgba(255,255,255,0.08)'],
+                borderColor: ['#4f46e5', 'rgba(255,255,255,0.15)'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: '#cbd5e1', font: { size: 12 } }
+                }
+            }
+        }
+    });
+
+    // 3. Pass vs Fail Ratio Chart
+    const passCtx = document.getElementById('passFailChart').getContext('2d');
+    new Chart(passCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Passed', 'Failed'],
+            datasets: [{
+                data: [<?= $passed_count ?>, <?= $failed_count ?>],
+                backgroundColor: ['#10b981', '#ef4444'],
+                borderColor: ['#059669', '#dc2626'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: '#cbd5e1', font: { size: 12 } }
+                }
+            }
+        }
+    });
+});
+</script>
+
 <?php else: ?>
 <div class="card"><div class="card-body">
     <div class="empty-state">
