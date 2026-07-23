@@ -367,6 +367,17 @@ function get_flash(string $key): string {
     return $msg;
 }
 
+function flash_messages(): void {
+    if (!empty($_SESSION['flash'])) {
+        foreach ($_SESSION['flash'] as $key => $msg) {
+            $class = ($key === 'error' || $key === 'danger') ? 'alert-error' : (($key === 'success') ? 'alert-success' : 'alert-info');
+            $icon  = ($key === 'error' || $key === 'danger') ? 'fa-circle-xmark' : 'fa-circle-check';
+            echo '<div class="alert ' . $class . '"><i class="fa-solid ' . $icon . '"></i> ' . $msg . '</div>';
+        }
+        unset($_SESSION['flash']);
+    }
+}
+
 function format_datetime(string $dt): string {
     return date('d M Y, h:i A', strtotime($dt));
 }
