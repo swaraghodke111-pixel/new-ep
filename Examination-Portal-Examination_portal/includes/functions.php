@@ -461,4 +461,77 @@ function log_email(int $user_id, string $type, string $recipient, string $subjec
     $stmt = $pdo->prepare("INSERT INTO email_logs (user_id, email_type, recipient, subject, body) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([$user_id, $type, $recipient, $subject, $body]);
 }
+
+function send_smtp_email(string $to, string $subject, string $body_html): bool {
+    $host = SMTP_HOST;
+    $port = SMTP_PORT;
+    $username = SMTP_USER;
+    $password = SMTP_PASS;
+    $from_name = SMTP_FROM_NAME;
+
+    $socket = @fsockopen($host, $port, $errno, $errstr, 15);
+    if (!$socket) {
+        error_log("SMTP Socket connection failed: $errstr ($errno)");
+        return false;
+    }
+
+    $read = function() use ($socket) {
+        $res = "";
+        while ($str = fgets($socket, 512)) {
+            $res .= $str;
+            if (substr($str, 3, 1) === " ") break;
+        }
+        return $res;
+    };
+
+    $read();
+    fwrite($socket, "EHLO " . gethostname() . "\r\n");
+    $read();
+
+    fwrite($socket, "STARTTLS\r\n");
+    $read();
+
+    @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT);
+
+    fwrite($socket, "EHLO " . gethostname() . "\r\n");
+    $read();
+
+    fwrite($socket, "AUTH LOGIN\r\n");
+    $read();
+
+    fwrite($socket, base64_encode($username) . "\r\n");
+    $read();
+
+    fwrite($socket, base64_encode($password) . "\r\n");
+    $auth_res = $read();
+
+    if (strpos($auth_res, "235") === false) {
+        fclose($socket);
+        error_log("SMTP Auth failed: " . trim($auth_res));
+        return false;
+    }
+
+    fwrite($socket, "MAIL FROM: <$username>\r\n");
+    $read();
+
+    fwrite($socket, "RCPT TO: <$to>\r\n");
+    $read();
+
+    fwrite($socket, "DATA\r\n");
+    $read();
+
+    $headers  = "From: $from_name <$username>\r\n";
+    $headers .= "To: <$to>\r\n";
+    $headers .= "Subject: $subject\r\n";
+    $headers .= "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+
+    fwrite($socket, $headers . "\r\n" . $body_html . "\r\n.\r\n");
+    $data_res = $read();
+
+    fwrite($socket, "QUIT\r\n");
+    fclose($socket);
+
+    return (strpos($data_res, "250") !== false);
+}
 ?>

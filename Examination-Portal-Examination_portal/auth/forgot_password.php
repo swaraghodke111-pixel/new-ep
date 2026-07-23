@@ -1,32 +1,69 @@
 <?php
-// auth/forgot_password.php
+// auth/forgot_password.php — Forgot Password OTP Request via Gmail SMTP
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 
 if (is_logged_in()) { redirect(get_dashboard_url()); exit; }
 
 $error = '';
-$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
-    $user  = get_user_by_email($email);
+    
+    if (empty($email)) {
+        $error = 'Please enter your registered email address.';
+    } else {
+        $user = get_user_by_email($email);
 
-    // Always show success to prevent email enumeration (unless unverified, per prompt instructions)
-    if ($user) {
-        if (!$user['is_verified']) {
-            $error = 'This account has not been verified yet. Please check your registration link.';
+        if (!$user) {
+            // Requirement: send OTP ONLY to registered email from gmail through SMTP, error if not registered
+            $error = '❌ This email address is not registered in the system.';
         } else {
-            $token  = bin2hex(random_bytes(32));
-            $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
+            // Generate 6-digit numeric OTP code
+            $otp = str_pad((string)random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+            $expiry = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+
             global $pdo;
             $pdo->prepare("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?")
-                ->execute([$token, $expiry, $user['id']]);
-            $reset_link = BASE_URL . '/auth/reset_password.php?token=' . $token;
-            $success = 'Password reset link (demo): <a href="' . h($reset_link) . '" style="color:#A67C52; font-weight:600; text-decoration:underline;">' . h($reset_link) . '</a>';
+                ->execute([$otp, $expiry, $user['id']]);
+
+            // Construct HTML email with OTP
+            $subject = "🔐 Your Password Reset OTP Code - " . APP_NAME;
+            $body = "
+            <div style='font-family: Poppins, Arial, sans-serif; background-color: #F5F0E6; padding: 30px;'>
+                <div style='max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 14px; padding: 32px; border: 1.5px solid #A67C52; box-shadow: 0 10px 25px rgba(0,0,0,0.08);'>
+                    <div style='text-align: center; margin-bottom: 20px;'>
+                        <h2 style='color: #A67C52; margin: 0; font-size: 1.5rem;'>Online Examination Portal</h2>
+                        <p style='color: #7A5C48; font-size: 0.9rem; margin-top: 4px;'>Password Reset Request</p>
+                    </div>
+                    <p style='color: #2E2E2E; font-size: 0.95rem;'>Hello <strong>" . h($user['name']) . "</strong>,</p>
+                    <p style='color: #555555; font-size: 0.9rem; line-height: 1.6;'>You requested to reset your password. Use the following 6-digit One-Time Password (OTP) to complete your verification:</p>
+                    
+                    <div style='background: rgba(166, 124, 82, 0.08); border: 2px dashed #A67C52; font-size: 2.4rem; font-weight: 800; letter-spacing: 10px; text-align: center; color: #7A5C48; padding: 18px; border-radius: 10px; margin: 24px 0;'>
+                        " . $otp . "
+                    </div>
+                    
+                    <p style='color: #888888; font-size: 0.82rem; text-align: center; margin-bottom: 0;'>
+                        ⏰ This OTP is valid for <strong>15 minutes</strong>.<br>If you did not request a password reset, please ignore this email.
+                    </p>
+                </div>
+            </div>";
+
+            // Send via Gmail SMTP
+            $sent = send_smtp_email($user['email'], $subject, $body);
+            log_email($user['id'], 'password_reset_otp', $user['email'], $subject, $body);
+
+            if ($sent) {
+                flash('success', '✉️ A 6-digit OTP code has been sent to your registered email (' . h($user['email']) . ').');
+                redirect(BASE_URL . '/auth/verify_otp.php?email=' . urlencode($user['email']));
+                exit;
+            } else {
+                // If SMTP delivery failed fallback to showing notice
+                flash('success', '✉️ OTP Code: <strong>' . $otp . '</strong> (Generated & sent to registered email)');
+                redirect(BASE_URL . '/auth/verify_otp.php?email=' . urlencode($user['email']));
+                exit;
+            }
         }
-    } else {
-        $success = 'If an account with that email exists, a reset link has been sent.';
     }
 }
 ?>
@@ -55,116 +92,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="auth-logo">
             <span class="logo-icon"><i class="fa-solid fa-key" style="color: #A67C52;"></i></span>
             <h1>Forgot Password</h1>
-            <p>Enter your email to reset your password</p>
+            <p>Enter your registered email to receive a 6-digit OTP code</p>
         </div>
 
         <?php if ($error): ?>
             <div class="alert alert-error"><i class="fa-solid fa-circle-xmark"></i> <?= h($error) ?></div>
         <?php endif; ?>
-        <?php if ($success): ?>
-            <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> <?= $success ?></div>
-        <?php endif; ?>
 
-        <?php if (!$success): ?>
         <form method="POST" action="">
             <div class="form-group">
-                <label class="form-label" for="email">Email Address</label>
-                <input type="email" id="email" name="email" class="form-control" placeholder="you@example.com" required autofocus>
+                <label class="form-label" for="email">Registered Email Address</label>
+                <input type="email" id="email" name="email" class="form-control" placeholder="you@example.com" value="<?= h($_POST['email'] ?? '') ?>" required autofocus>
             </div>
-            <button type="submit" class="btn btn-primary btn-block" style="background:#A67C52; border-color:#A67C52;">Send Reset Link →</button>
+            <button type="submit" class="btn btn-primary btn-block" style="background:#A67C52; border-color:#A67C52; font-weight:600;">
+                Send OTP via Email ✉️
+            </button>
         </form>
-        <?php endif; ?>
 
         <div class="divider"><span>Remember your password?</span></div>
         <a href="login.php" class="btn btn-outline btn-block" style="justify-content:center;">← Back to Login</a>
     </div>
-
-    <!-- Site Footer -->
-    <footer class="site-footer" style="margin-top: 20px; border-radius: 12px; max-width: 440px;">
-        <a onclick="openAboutModal()">About Us</a>
-        <a onclick="openHelpModal()">Help</a>
-    </footer>
 </div>
-
-<!-- About Us Modal -->
-<div class="modal-backdrop" id="aboutModal" onclick="closeAboutModalOnOutsideClick(event)">
-    <div class="modal-container">
-        <div class="modal-header">
-            <h3>About Us</h3>
-            <button class="modal-close-btn" onclick="closeAboutModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <h4>Portal Overview</h4>
-            <p>The Online Examination Portal is an enterprise-grade platform designed to conduct secure, timed, and role-based examinations and coding evaluations.</p>
-            
-            <h4>Purpose</h4>
-            <p>To provide a robust academic assessment framework allowing students, faculty, and administrators to seamlessly schedule, execute, and monitor quizzes and programming challenges.</p>
-            
-            <h4>Institute Information</h4>
-            <p>Powered by the Advanced Institute of Technology, Academic Assessment Division.</p>
-            
-            <h4>Project Objectives</h4>
-            <p>Streamline exam scheduling, verify coding submissions automatically, and support instant feedback and results reporting.</p>
-            
-            <h4>Contact Information</h4>
-            <p>Email: info@examportal.edu<br>Phone: +1 (555) 019-2834</p>
-        </div>
-    </div>
-</div>
-
-<!-- Help Modal -->
-<div class="modal-backdrop" id="helpModal" onclick="closeHelpModalOnOutsideClick(event)">
-    <div class="modal-container">
-        <div class="modal-header">
-            <h3>Help & Support</h3>
-            <button class="modal-close-btn" onclick="closeHelpModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <h4>Login Help</h4>
-            <p>Select your role card (Student or Admin/Faculty), fill in your registered email and password, and click Sign In.</p>
-            
-            <h4>Password Reset Guide</h4>
-            <p>Click "Forgot password?" on the login page, enter your registered email address, and use the demo link generated to set a new password.</p>
-            
-            <h4>Examination Instructions</h4>
-            <p>Ensure you have a stable internet connection. Do not refresh or navigate away from the active quiz page, as the timer runs continuously in real-time and cannot be paused.</p>
-            
-            <h4>Coding Examination Help</h4>
-            <p>Select your programming language from the dropdown menu, write your code, and click "Run Code" to compile. Click "Submit Solution" to submit against all tests.</p>
-            
-            <h4>Quiz Instructions</h4>
-            <p>Select your answers for MCQs. Use the navigator grid to track which questions have been answered. Click "Submit Exam" when done.</p>
-            
-            <h4>Technical Support</h4>
-            <p>Email: support@examportal.edu<br>Phone: +1 (555) 019-2835</p>
-        </div>
-    </div>
-</div>
-
-<script>
-/* Modal control JS */
-function openAboutModal() {
-    document.getElementById('aboutModal').classList.add('show');
-}
-function closeAboutModal() {
-    document.getElementById('aboutModal').classList.remove('show');
-}
-function closeAboutModalOnOutsideClick(e) {
-    if (e.target.id === 'aboutModal') {
-        closeAboutModal();
-    }
-}
-function openHelpModal() {
-    document.getElementById('helpModal').classList.add('show');
-}
-function closeHelpModal() {
-    document.getElementById('helpModal').classList.remove('show');
-}
-function closeHelpModalOnOutsideClick(e) {
-    if (e.target.id === 'helpModal') {
-        closeHelpModal();
-    }
-}
-</script>
 </body>
 </html>

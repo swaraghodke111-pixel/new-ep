@@ -1,5 +1,5 @@
 <?php
-// config.php — Database configuration for Online Examination Portal
+// config.php — Database & SMTP configuration for Online Examination Portal
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -11,13 +11,13 @@ define('DB_PASS', '');
 define('DB_NAME', 'exam_portal');
 define('BASE_URL', 'http://localhost:8001');
 
-// SMTP Configuration
+// SMTP Configuration (Gmail SMTP)
 define('SMTP_HOST', 'smtp.gmail.com');
 define('SMTP_PORT', 587);
-define('SMTP_USER', 'your_email@gmail.com');
-define('SMTP_PASS', 'your_app_password');
-define('SMTP_FROM', 'your_email@gmail.com');
-define('SMTP_FROM_NAME', 'Exam Portal');
+define('SMTP_USER', 'badakrohit@gmail.com');
+define('SMTP_PASS', 'trkxotmhbbnkcofq');
+define('SMTP_FROM', 'badakrohit@gmail.com');
+define('SMTP_FROM_NAME', 'Online Examination Portal');
 
 // Application settings
 define('APP_NAME', 'Online Examination Portal');
