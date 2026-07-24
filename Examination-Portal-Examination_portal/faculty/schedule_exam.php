@@ -13,17 +13,17 @@ $exam_id  = (int)($_GET['exam_id'] ?? $_POST['exam_id'] ?? 0);
 $exam     = $exam_id ? get_exam_by_id($exam_id) : null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $exam_id) {
-    $start_date = $_POST['start_date'] ?? '';
-    $end_date   = $_POST['end_date'] ?? '';
-    $duration   = (int)($_POST['duration'] ?? 60);
+    $start_raw = $_POST['start_time'] ?? $_POST['start_date'] ?? '';
+    $end_raw   = $_POST['end_time'] ?? $_POST['end_date'] ?? '';
+    $duration  = (int)($_POST['duration'] ?? 60);
 
-    if (empty($start_date) || empty($end_date)) {
-        flash('error', 'Start and end dates are required.');
-    } elseif (strtotime($end_date) < strtotime($start_date)) {
-        flash('error', 'End date must be on or after start date.');
+    if (empty($start_raw) || empty($end_raw)) {
+        flash('error', 'Start and end date & time are required.');
+    } elseif (strtotime($end_raw) <= strtotime($start_raw)) {
+        flash('error', 'End date & time must be after start date & time.');
     } else {
-        $start_time = $start_date . ' 00:00:00';
-        $end_time   = $end_date . ' 23:59:59';
+        $start_time = date('Y-m-d H:i:s', strtotime($start_raw));
+        $end_time   = date('Y-m-d H:i:s', strtotime($end_raw));
         $pdo->prepare("UPDATE exams SET start_time=?, end_time=?, duration=?, status='scheduled' WHERE id=?")
             ->execute([$start_time, $end_time, $duration, $exam_id]);
         flash('success', 'Exam scheduled successfully!');
@@ -203,14 +203,14 @@ if($fe):?><div class="alert alert-error">❌ <?=h($fe)?></div><?php endif;
                 <input type="hidden" name="exam_id" value="<?= $exam_id ?>">
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Start Date *</label>
-                        <input type="date" name="start_date" class="form-control"
-                               value="<?= date('Y-m-d', strtotime($exam['start_time'] ?? 'now')) ?>" required>
+                        <label class="form-label">Start Date & Time *</label>
+                        <input type="datetime-local" name="start_time" class="form-control"
+                               value="<?= date('Y-m-d\TH:i', strtotime($exam['start_time'] ?? 'now')) ?>" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">End Date *</label>
-                        <input type="date" name="end_date" class="form-control"
-                               value="<?= date('Y-m-d', strtotime($exam['end_time'] ?? '+7 days')) ?>" required>
+                        <label class="form-label">End Date & Time *</label>
+                        <input type="datetime-local" name="end_time" class="form-control"
+                               value="<?= date('Y-m-d\TH:i', strtotime($exam['end_time'] ?? '+7 days')) ?>" required>
                     </div>
                 </div>
                 <div class="form-group">

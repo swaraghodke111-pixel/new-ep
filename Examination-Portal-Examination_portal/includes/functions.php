@@ -467,6 +467,30 @@ function reply_to_help_query(int $query_id, int $admin_id, string $reply_text): 
     return $ok;
 }
 
+function send_async_email(int $user_id, string $type, string $recipient, string $subject, string $body_html): bool {
+    global $pdo;
+    try {
+        // 1. Log email to database immediately
+        $stmt = $pdo->prepare("INSERT INTO email_logs (user_id, email_type, recipient, subject, body) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$user_id, $type, $recipient, $subject, $body_html]);
+        $log_id = (int)$pdo->lastInsertId();
+
+        // 2. Spawn non-blocking background worker for instant 0ms response time
+        $worker_path = __DIR__ . '/async_mailer.php';
+        if (function_exists('exec')) {
+            $cmd = "php " . escapeshellarg($worker_path) . " " . $log_id . " > /dev/null 2>&1 &";
+            exec($cmd);
+            return true;
+        } else {
+            // Fallback to synchronous delivery if exec is restricted
+            return send_smtp_email($recipient, $subject, $body_html);
+        }
+    } catch (Throwable $e) {
+        error_log("Async email error: " . $e->getMessage());
+        return send_smtp_email($recipient, $subject, $body_html);
+    }
+}
+
 function log_email(int $user_id, string $type, string $recipient, string $subject, string $body): void {
     global $pdo;
     $stmt = $pdo->prepare("INSERT INTO email_logs (user_id, email_type, recipient, subject, body) VALUES (?, ?, ?, ?, ?)");
@@ -480,11 +504,13 @@ function send_smtp_email(string $to, string $subject, string $body_html): bool {
     $password = SMTP_PASS;
     $from_name = SMTP_FROM_NAME;
 
-    $socket = @fsockopen($host, $port, $errno, $errstr, 15);
+    // Fast socket connection with 6s timeout
+    $socket = @fsockopen($host, $port, $errno, $errstr, 6);
     if (!$socket) {
         error_log("SMTP Socket connection failed: $errstr ($errno)");
         return false;
     }
+    stream_set_timeout($socket, 6);
 
     $read = function() use ($socket) {
         $res = "";
@@ -531,18 +557,126 @@ function send_smtp_email(string $to, string $subject, string $body_html): bool {
     fwrite($socket, "DATA\r\n");
     $read();
 
+    // Anti-Spam RFC 5322 Headers & Multipart MIME to ensure delivery to Inbox
+    $boundary = "----=_Part_" . md5(uniqid(microtime(), true));
+    $plain_text = trim(strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $body_html)));
+
+    $domain = parse_url(BASE_URL, PHP_URL_HOST) ?: 'localhost';
+    $message_id = "<" . md5(uniqid(microtime(), true)) . "@" . $domain . ">";
+
     $headers  = "From: $from_name <$username>\r\n";
+    $headers .= "Reply-To: $from_name <$username>\r\n";
     $headers .= "To: <$to>\r\n";
     $headers .= "Subject: $subject\r\n";
+    $headers .= "Date: " . date(DATE_RFC2822) . "\r\n";
+    $headers .= "Message-ID: $message_id\r\n";
+    $headers .= "X-Mailer: Online Examination Portal Mailer v2.0\r\n";
+    $headers .= "X-Auto-Response-Suppress: All\r\n";
     $headers .= "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "Content-Type: multipart/alternative; boundary=\"$boundary\"\r\n";
 
-    fwrite($socket, $headers . "\r\n" . $body_html . "\r\n.\r\n");
+    $body_content  = "--$boundary\r\n";
+    $body_content .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $body_content .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+    $body_content .= $plain_text . "\r\n\r\n";
+
+    $body_content .= "--$boundary\r\n";
+    $body_content .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $body_content .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+    $body_content .= $body_html . "\r\n\r\n";
+    $body_content .= "--$boundary--";
+
+    fwrite($socket, $headers . "\r\n" . $body_content . "\r\n.\r\n");
     $data_res = $read();
 
     fwrite($socket, "QUIT\r\n");
     fclose($socket);
 
     return (strpos($data_res, "250") !== false);
+}
+
+/**
+ * Automatically checks for upcoming tasks and exams due in ~24 hours
+ * and sends reminder emails to students.
+ */
+function check_and_send_deadline_reminders(): void {
+    global $pdo;
+    static $has_run = false;
+    if ($has_run || !is_object($pdo)) return;
+    $has_run = true;
+
+    try {
+        // 1. Check Tasks due in next 24 to 30 hours
+        $task_stmt = $pdo->query("
+            SELECT t.*
+            FROM tasks t
+            WHERE t.deadline BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 HOUR)
+        ");
+        $tasks = $task_stmt ? $task_stmt->fetchAll() : [];
+
+        // 2. Check Exams scheduled in next 24 to 30 hours
+        $exam_stmt = $pdo->query("
+            SELECT * FROM exams
+            WHERE is_published = 1
+              AND scheduled_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 HOUR)
+        ");
+        $exams = $exam_stmt ? $exam_stmt->fetchAll() : [];
+
+        if (!$tasks && !$exams) return;
+
+        // Fetch students
+        $students = $pdo->query("SELECT id, name, email FROM users WHERE role = 'student'")->fetchAll();
+        if (!$students) return;
+
+        foreach ($tasks as $task) {
+            $subject = "⏰ Reminder: Task \"" . $task['title'] . "\" Deadline is Tomorrow!";
+            foreach ($students as $student) {
+                $check = $pdo->prepare("SELECT id FROM email_logs WHERE user_id = ? AND email_type = 'deadline_reminder' AND subject = ?");
+                $check->execute([$student['id'], $subject]);
+                if (!$check->fetch()) {
+                    $body = "
+                    <div style='font-family: Poppins, Arial, sans-serif; padding: 20px; color: #1e293b;'>
+                        <h2 style='color: #ff6b00;'>⏰ Upcoming Task Deadline Reminder</h2>
+                        <p>Hello <strong>" . h($student['name']) . "</strong>,</p>
+                        <p>This is a friendly reminder that the task <strong>\"" . h($task['title']) . "\"</strong> is due within 24 hours.</p>
+                        <div style='background: #f8fafc; padding: 15px; border-left: 4px solid #ff6b00; border-radius: 6px; margin: 15px 0;'>
+                            <p style='margin: 0;'><strong>Task Title:</strong> " . h($task['title']) . "</p>
+                            <p style='margin: 6px 0 0 0;'><strong>Deadline:</strong> " . date('F j, Y, g:i a', strtotime($task['deadline'])) . "</p>
+                        </div>
+                        <p><a href='" . BASE_URL . "/student/tasks.php' style='display: inline-block; padding: 10px 20px; background: #ff6b00; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;'>View & Submit Task</a></p>
+                    </div>";
+                    if (send_smtp_email($student['email'], $subject, $body)) {
+                        log_email($student['id'], 'deadline_reminder', $student['email'], $subject, $body);
+                    }
+                }
+            }
+        }
+
+        foreach ($exams as $exam) {
+            $subject = "⏰ Reminder: Exam \"" . $exam['title'] . "\" is Scheduled Tomorrow!";
+            foreach ($students as $student) {
+                $check = $pdo->prepare("SELECT id FROM email_logs WHERE user_id = ? AND email_type = 'deadline_reminder' AND subject = ?");
+                $check->execute([$student['id'], $subject]);
+                if (!$check->fetch()) {
+                    $body = "
+                    <div style='font-family: Poppins, Arial, sans-serif; padding: 20px; color: #1e293b;'>
+                        <h2 style='color: #ff6b00;'>⏰ Upcoming Exam Reminder</h2>
+                        <p>Hello <strong>" . h($student['name']) . "</strong>,</p>
+                        <p>This is a reminder that your exam <strong>\"" . h($exam['title']) . "\"</strong> is scheduled within 24 hours.</p>
+                        <div style='background: #f8fafc; padding: 15px; border-left: 4px solid #ff6b00; border-radius: 6px; margin: 15px 0;'>
+                            <p style='margin: 0;'><strong>Exam Title:</strong> " . h($exam['title']) . "</p>
+                            <p style='margin: 6px 0 0 0;'><strong>Scheduled Date:</strong> " . date('F j, Y, g:i a', strtotime($exam['scheduled_at'])) . "</p>
+                        </div>
+                        <p><a href='" . BASE_URL . "/student/exams.php' style='display: inline-block; padding: 10px 20px; background: #ff6b00; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;'>Go to Exams Portal</a></p>
+                    </div>";
+                    if (send_smtp_email($student['email'], $subject, $body)) {
+                        log_email($student['id'], 'deadline_reminder', $student['email'], $subject, $body);
+                    }
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        error_log("Deadline reminder exception: " . $e->getMessage());
+    }
 }
 ?>

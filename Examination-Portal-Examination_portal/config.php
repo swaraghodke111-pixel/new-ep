@@ -21,7 +21,7 @@ define('SMTP_FROM_NAME', 'Online Examination Portal');
 
 // Application settings
 define('APP_NAME', 'Online Examination Portal');
-define('ADMIN_EMAIL', 'admin@exam.com');
+define('ADMIN_EMAIL', 'balajichaughule@gmail.com');
 
 try {
     // First connect without DB to check if it exists

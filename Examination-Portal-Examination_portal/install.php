@@ -320,9 +320,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install'])) {
             INDEX `idx_faculty_dept` (`department_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+        $admin_pass = password_hash('123456', PASSWORD_DEFAULT);
         $student_pass = password_hash('Admin@123', PASSWORD_DEFAULT);
         $pdo->exec("INSERT IGNORE INTO `users` (`id`,`name`,`email`,`password`,`role`,`email_verified`,`is_verified`) VALUES
-            (1, 'Super Admin','admin@exam.com','$student_pass','admin',1,1),
+            (1, 'Super Admin','balajichaughule@gmail.com','$admin_pass','admin',1,1),
             (2, 'Demo Student','student@exam.com','$student_pass','student',1,1)
         ");
 
@@ -348,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install'])) {
         ");
 
         $installed = true;
-        $success = 'Database installed successfully! Default credentials: admin@exam.com / Admin@123';
+        $success = 'Database installed successfully! Default credentials: balajichaughule@gmail.com / 123456';
 
     } catch (PDOException $e) {
         $error = 'Installation failed: ' . $e->getMessage();

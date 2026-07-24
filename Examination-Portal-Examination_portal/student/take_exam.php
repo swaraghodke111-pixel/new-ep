@@ -124,6 +124,20 @@ foreach ($saved_stmt->fetchAll() as $sa) {
             box-shadow: 0 10px 25px rgba(0,0,0,0.4); display: none;
             backdrop-filter: blur(8px);
         }
+        @media (max-width: 768px) {
+            .exam-topbar {
+                padding: 12px 14px;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .exam-container {
+                padding: 16px 12px;
+            }
+            .timer-display {
+                font-size: 1.6rem !important;
+                margin: 4px 0 !important;
+            }
+        }
     </style>
 </head>
 <body>

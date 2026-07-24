@@ -152,76 +152,110 @@ require_once dirname(__DIR__) . '/includes/header.php';
     </div>
 </div>
 
-<?php if ($results): ?>
-    <?php
-    $chart_labels = [];
-    $chart_scores = [];
-    $chart_passmark = [];
-    foreach (array_reverse(array_slice($results, 0, 8)) as $r) {
-        $chart_labels[] = h($r['title']);
-        $chart_scores[] = (int)$r['percentage'];
-        $chart_passmark[] = (int)$r['pass_percentage'];
-    }
-    ?>
-    <div class="card" style="margin-top:24px;">
-        <div class="card-header">
-            <h3>📈 Performance Trends & Comparison Graphs</h3>
-        </div>
-        <div class="card-body">
-            <div style="height: 250px; position: relative;">
-                <canvas id="performanceChart"></canvas>
-            </div>
-        </div>
+<!-- Student Vertical Bar Graph Section -->
+<div class="card" style="margin-top:24px;">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <h3>📊 Student Performance Vertical Bar Graph</h3>
+        <span class="badge" style="background:rgba(255,107,0,0.15); color:#FF6B00; font-weight:700;">
+            Overall Progress: <?= $taken > 0 ? round(($passed / $taken) * 100) : 0 ?>% Pass Rate
+        </span>
     </div>
+    <div class="card-body">
+        
+        <?php if (!empty($results)): ?>
+            <!-- Summary Metrics Cards -->
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:28px;">
+                <div style="background:var(--bg-card); border:1px solid var(--border); padding:14px 16px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+                    <div style="display:flex; justify-content:space-between; font-size:0.88rem; margin-bottom:6px;">
+                        <span style="color:var(--text-muted); font-weight:500;">Pass Rate</span>
+                        <strong style="color:#FF6B00; font-size:0.95rem;"><?= $taken > 0 ? round(($passed / $taken) * 100) : 0 ?>%</strong>
+                    </div>
+                    <div style="height:8px; background:var(--border); border-radius:4px; overflow:hidden;">
+                        <div style="width:<?= $taken > 0 ? round(($passed / $taken) * 100) : 0 ?>%; height:100%; background:#FF6B00; border-radius:4px;"></div>
+                    </div>
+                </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const ctx = document.getElementById('performanceChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: <?= json_encode($chart_labels) ?>,
-                datasets: [
-                    {
-                        label: 'Your Percentage (%)',
-                        data: <?= json_encode($chart_scores) ?>,
-                        backgroundColor: 'rgba(147, 51, 234, 0.6)',
-                        borderColor: 'rgba(147, 51, 234, 1)',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Required Pass Mark (%)',
-                        data: <?= json_encode($chart_passmark) ?>,
-                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                        borderColor: 'rgba(239, 68, 68, 1)',
-                        borderWidth: 1,
-                        type: 'line'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#94a3b8' }
-                    },
-                    x: {
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#94a3b8' }
-                    }
-                },
-                plugins: {
-                    legend: { labels: { color: '#cbd5e1' } }
-                }
-            }
-        });
-    });
-    </script>
-<?php endif; ?>
+                <div style="background:var(--bg-card); border:1px solid var(--border); padding:14px 16px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+                    <div style="display:flex; justify-content:space-between; font-size:0.88rem; margin-bottom:6px;">
+                        <span style="color:var(--text-muted); font-weight:500;">Average Score</span>
+                        <strong style="color:#10B981; font-size:0.95rem;"><?= $avg_score ?>%</strong>
+                    </div>
+                    <div style="height:8px; background:var(--border); border-radius:4px; overflow:hidden;">
+                        <div style="width:<?= min(100, max(0, $avg_score)) ?>%; height:100%; background:#10B981; border-radius:4px;"></div>
+                    </div>
+                </div>
+
+                <div style="background:var(--bg-card); border:1px solid var(--border); padding:14px 16px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+                    <div style="display:flex; justify-content:space-between; font-size:0.88rem; margin-bottom:6px;">
+                        <span style="color:var(--text-muted); font-weight:500;">Completion Rate</span>
+                        <strong style="color:#3B82F6; font-size:0.95rem;"><?= $total_exams > 0 ? round(($taken / $total_exams) * 100) : 0 ?>%</strong>
+                    </div>
+                    <div style="height:8px; background:var(--border); border-radius:4px; overflow:hidden;">
+                        <div style="width:<?= $total_exams > 0 ? round(($taken / $total_exams) * 100) : 0 ?>%; height:100%; background:#3B82F6; border-radius:4px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vertical Bar Graph Section -->
+            <h4 style="font-size:0.95rem; margin-bottom:20px; color:var(--text-muted); font-weight:600;">📈 Individual Exam Scores (Vertical Bar Graph)</h4>
+            
+            <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:28px 20px 20px 20px; box-shadow:0 4px 16px rgba(0,0,0,0.03);">
+                <div style="display:flex; height:270px; position:relative; gap:16px;">
+                    
+                    <!-- Y-Axis Scale (0% to 100%) -->
+                    <div style="display:flex; flex-direction:column; justify-content:space-between; height:210px; font-size:0.75rem; color:var(--text-muted); font-weight:600; text-align:right; min-width:42px;">
+                        <span>100%</span>
+                        <span>75%</span>
+                        <span>50%</span>
+                        <span>25%</span>
+                        <span>0%</span>
+                    </div>
+
+                    <!-- Graph Plot Area with Baseline & Grid -->
+                    <div style="flex:1; display:flex; flex-direction:column; height:100%;">
+                        <!-- Bars Container -->
+                        <div style="height:210px; border-left:2px solid var(--border); border-bottom:2px solid var(--border); display:flex; align-items:flex-end; justify-content:space-around; gap:12px; padding:0 16px; position:relative; background:linear-gradient(to bottom, transparent 99%, var(--border) 100%); background-size: 100% 25%;">
+                            
+                            <?php foreach (array_slice($results, 0, 7) as $res): 
+                                $score_pct = (float)$res['percentage'];
+                                $bar_color = $res['passed'] ? '#FF6B00' : '#EF4444';
+                                $bar_height = max(5, min(100, $score_pct));
+                            ?>
+                                <div style="display:flex; flex-direction:column; align-items:center; flex:1; max-width:68px; height:100%; justify-content:flex-end; position:relative;">
+                                    <!-- Percentage Pill above Bar -->
+                                    <span style="font-size:0.75rem; font-weight:700; color:<?= $bar_color ?>; margin-bottom:8px; background:rgba(0,0,0,0.04); padding:3px 8px; border-radius:6px; white-space:nowrap;">
+                                        <?= number_format($score_pct, 0) ?>%
+                                    </span>
+
+                                    <!-- Vertical Pillar -->
+                                    <div style="width:100%; max-width:48px; height:<?= $bar_height ?>%; background:linear-gradient(180deg, <?= $bar_color ?>, rgba(255,107,0,0.55)); border-radius:8px 8px 0 0; transition:height 0.8s ease; box-shadow:0 4px 12px rgba(0,0,0,0.08);" title="<?= h($res['title']) ?>: <?= number_format($score_pct, 1) ?>%"></div>
+                                </div>
+                            <?php endforeach; ?>
+
+                        </div>
+
+                        <!-- X-Axis Labels Below Baseline -->
+                        <div style="display:flex; justify-content:space-around; gap:12px; padding:12px 16px 0 16px;">
+                            <?php foreach (array_slice($results, 0, 7) as $res): ?>
+                                <div style="flex:1; max-width:68px; text-align:center; font-size:0.78rem; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?= h($res['title']) ?>">
+                                    <?= h($res['title']) ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        <?php else: ?>
+            <div class="empty-state" style="padding:24px;">
+                <span class="empty-icon">📊</span>
+                <h3>No Performance Data Yet</h3>
+                <p>Take your first exam to view your vertical bar graph here!</p>
+            </div>
+        <?php endif; ?>
+
+    </div>
+</div>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>

@@ -54,11 +54,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             login_user($user);
             send_notification($user['id'], 'Welcome back, ' . $user['name'] . '! You have logged in successfully.');
+
+            // ── SEND LOGIN DETAILS EMAIL NOTIFICATION ─────────────────────────────────
+            $subject = "🔐 Account Login Details & Alert - " . APP_NAME;
+            $ip_addr = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+            $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Web Browser';
+            $login_time = date('F j, Y, g:i a');
+            $dashboard_link = BASE_URL . '/' . (
+                $user['role'] === 'admin' ? 'admin/dashboard.php' :
+                ($user['role'] === 'faculty' ? 'faculty/dashboard.php' : 'student/dashboard.php')
+            );
+
+            $body = "
+            <div style='font-family: Poppins, Arial, sans-serif; background-color: #f8fafc; padding: 25px;'>
+                <div style='max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.06);'>
+                    <div style='text-align: center; margin-bottom: 24px;'>
+                        <div style='display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 16px; background: rgba(255, 107, 0, 0.1); color: #ff6b00; font-size: 1.8rem; text-align: center;'>🎓</div>
+                        <h2 style='color: #1e293b; margin: 12px 0 4px 0; font-size: 1.4rem;'>Online Examination Portal</h2>
+                        <p style='color: #10b981; font-weight: 600; font-size: 0.95rem; margin: 0;'>✅ Account Login Successful</p>
+                    </div>
+                    
+                    <p style='color: #1e293b; font-size: 0.95rem;'>Hello <strong>" . h($user['name']) . "</strong>,</p>
+                    <p style='color: #475569; font-size: 0.9rem; line-height: 1.6;'>You have successfully logged into your account on the Online Examination Portal. Here are your account login details:</p>
+                    
+                    <div style='background: #f8fafc; border: 1.5px solid #e2e8f0; border-left: 4px solid #ff6b00; padding: 18px; border-radius: 10px; margin: 20px 0;'>
+                        <table style='width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #1e293b;'>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b; width: 140px;'><strong>Account Holder:</strong></td>
+                                <td style='padding: 6px 0; font-weight: 600;'>" . h($user['name']) . "</td>
+                            </tr>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b;'><strong>Registered Email:</strong></td>
+                                <td style='padding: 6px 0; font-weight: 600; color: #ff6b00;'>" . h($user['email']) . "</td>
+                            </tr>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b;'><strong>Portal Role:</strong></td>
+                                <td style='padding: 6px 0; font-weight: 600; color: #6366f1;'>" . ucfirst(h($user['role'])) . " Portal</td>
+                            </tr>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b;'><strong>Login Time:</strong></td>
+                                <td style='padding: 6px 0;'>" . $login_time . "</td>
+                            </tr>
+                            <tr>
+                                <td style='padding: 6px 0; color: #64748b;'><strong>IP Address:</strong></td>
+                                <td style='padding: 6px 0; font-family: monospace;'>" . h($ip_addr) . "</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style='text-align: center; margin-top: 24px; margin-bottom: 20px;'>
+                        <a href='" . $dashboard_link . "' style='display: inline-block; padding: 12px 28px; background: #ff6b00; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 14px rgba(255, 107, 0, 0.3);'>Go to Your Dashboard →</a>
+                    </div>
+
+                    <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;'>
+                    <p style='color: #94a3b8; font-size: 0.8rem; text-align: center; margin: 0;'>
+                        If you did not perform this login, please <a href='" . BASE_URL . "/auth/forgot_password.php' style='color: #ef4444; text-decoration: underline;'>reset your password immediately</a>.
+                    </p>
+                </div>
+            </div>";
+
+            // Non-blocking async email dispatch for instant <30ms login response
+            send_async_email($user['id'], 'login_alert', $user['email'], $subject, $body);
+
             redirect(get_dashboard_url());
             exit;
         } else {
             // Failed attempt logic
-            // Reset count if previous lockout window passed
             if ($now >= $attempts_data['lockout_until'] && $attempts_data['lockout_until'] > 0) {
                 $attempts_data['count'] = 0;
                 $attempts_data['lockout_until'] = 0;
@@ -70,7 +131,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $attempts_data['lockout_until'] = $now + 30; // 30 seconds freeze
                 $attempts_data['count'] = 0; // Reset count for next cycle
                 $lockout_remaining = 30;
-                $error = "🚫 Too many failed login attempts (3/3)! Account login is frozen for 30 seconds.";
+                $error = "🚫 Too many failed login attempts (3/3)! Account login is frozen for 30 seconds. Please wait before trying again.";
+
+                // Send Security Alert Email when user enters wrong password 3 times
+                if ($user) {
+                    $subject = "⚠️ Security Alert: 3 Failed Login Attempts Detected";
+                    $ip_addr = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+                    $time_now = date('F j, Y, g:i a');
+
+                    $body = "
+                    <div style='font-family: Poppins, Arial, sans-serif; padding: 20px; color: #1e293b;'>
+                        <h2 style='color: #ef4444;'>⚠️ Security Warning: 3 Incorrect Password Attempts</h2>
+                        <p>Hello <strong>" . h($user['name']) . "</strong>,</p>
+                        <p>There were <strong>3 consecutive incorrect password attempts</strong> entered for your account.</p>
+                        <div style='background: #fef2f2; padding: 15px; border-left: 4px solid #ef4444; border-radius: 6px; margin: 15px 0;'>
+                            <p style='margin: 0;'><strong>Account Email:</strong> " . h($user['email']) . "</p>
+                            <p style='margin: 6px 0 0 0;'><strong>Status:</strong> Login frozen for 30 seconds</p>
+                            <p style='margin: 6px 0 0 0;'><strong>Timestamp:</strong> " . $time_now . "</p>
+                            <p style='margin: 6px 0 0 0;'><strong>IP Address:</strong> " . h($ip_addr) . "</p>
+                        </div>
+                        <p>If you forgot your password, click below to reset it using your 6-digit OTP code:</p>
+                        <p><a href='" . BASE_URL . "/auth/forgot_password.php' style='display: inline-block; padding: 10px 20px; background: #ef4444; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;'>Reset Password Now</a></p>
+                    </div>";
+                    send_async_email($user['id'], 'failed_login_alert', $user['email'], $subject, $body);
+                }
             } else {
                 $remaining_attempts = 3 - $attempts_data['count'];
                 $error = "Invalid email or password. Attempt " . $attempts_data['count'] . " of 3. (" . $remaining_attempts . " attempt" . ($remaining_attempts > 1 ? "s" : "") . " remaining before 30s lockout)";
@@ -96,124 +180,353 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <style>
         body {
             font-family: 'Poppins', -apple-system, sans-serif;
-            background-color: #F5F0E6;
-            color: #2E2E2E;
+            background-color: #ECEFF4;
+            color: #1E293B;
+        }
+        .auth-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+        }
+        .login-wrapper {
+            display: flex;
+            width: 100%;
+            max-width: 1020px;
+            background: #FFFFFF;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            min-height: 620px;
+        }
+        .login-hero {
+            flex: 1.1;
+            background: #252830; /* Dark Charcoal Slate */
+            position: relative;
+            padding: 48px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            color: #FFFFFF;
+            overflow: hidden;
+        }
+        .hero-accent-top {
+            position: absolute;
+            top: -60px;
+            left: -60px;
+            width: 200px;
+            height: 200px;
+            background: #FF6B00;
+            border-radius: 50%;
+            opacity: 0.95;
+        }
+        .hero-accent-bottom {
+            position: absolute;
+            bottom: -70px;
+            right: -40px;
+            width: 190px;
+            height: 190px;
+            background: #FF6B00;
+            border-radius: 50%;
+            opacity: 0.95;
+        }
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+        }
+        .hero-logo-emblem {
+            width: 84px;
+            height: 84px;
+            border: 3.5px solid #FF6B00;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.8rem;
+            color: #FF6B00;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 25px rgba(255, 107, 0, 0.25);
+        }
+        .hero-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .highlight-orange {
+            color: #FF6B00 !important;
+        }
+        .hero-subtitle {
+            color: #94A3B8;
+            font-size: 0.92rem;
+            font-weight: 400;
+            margin-bottom: 32px;
+        }
+        .hero-illustration {
+            margin-top: auto;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        .login-form-container {
+            flex: 1;
+            padding: 48px 44px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: #FFFFFF;
+        }
+        .login-header-text {
+            margin-bottom: 24px;
+        }
+        .login-header-text h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1E293B;
+            margin-bottom: 4px;
+        }
+        .login-header-text p {
+            color: #64748B;
+            font-size: 0.9rem;
+        }
+        .input-with-icon {
+            position: relative;
+        }
+        .input-with-icon i.field-icon {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94A3B8;
+            font-size: 1.05rem;
+        }
+        .input-with-icon .form-control {
+            padding-left: 48px;
+            height: 48px;
+            border-radius: 12px;
+            border: 1.5px solid #E2E8F0;
+            font-size: 0.92rem;
+        }
+        .input-with-icon .form-control:focus {
+            border-color: #FF6B00;
+            box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.15);
         }
         .role-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 20px 16px;
+            background: #F8FAFC;
+            border: 1.5px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 14px 12px;
             text-align: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s ease;
             cursor: pointer;
             display: flex;
             flex-direction: column;
             align-items: center;
-            box-shadow: var(--shadow);
         }
         .role-card:hover {
-            transform: translateY(-4px);
-            border-color: #A67C52;
-            box-shadow: 0 8px 24px rgba(92, 64, 51, 0.08);
+            border-color: #FF6B00;
+            transform: translateY(-2px);
         }
         .role-card.selected-active {
-            border-color: #A67C52 !important;
-            background: #FFF8F0 !important;
-            box-shadow: 0 8px 24px rgba(166, 124, 82, 0.15) !important;
+            border-color: #FF6B00 !important;
+            background: rgba(255, 107, 0, 0.05) !important;
+            box-shadow: 0 4px 14px rgba(255, 107, 0, 0.12) !important;
         }
         .role-icon {
-            font-size: 2.2rem;
-            margin-bottom: 12px;
+            font-size: 1.6rem;
+            margin-bottom: 6px;
+            color: #FF6B00;
         }
         .role-card h2 {
-            font-size: 1.1rem;
+            font-size: 0.95rem;
             font-weight: 700;
-            margin-bottom: 8px;
-            color: #5C4033;
+            margin-bottom: 2px;
+            color: #1E293B;
         }
         .role-card p {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-            line-height: 1.5;
+            color: #64748B;
+            font-size: 0.75rem;
             margin-bottom: 0;
+        }
+        .selected-role-card {
+            background: rgba(255, 107, 0, 0.05);
+            border: 1.5px dashed #FF6B00;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            margin: 16px 0;
+            font-weight: 600;
+            color: #1E293B;
+            font-size: 0.85rem;
+        }
+        .btn-login-primary {
+            background: #FF6B00 !important;
+            border-color: #FF6B00 !important;
+            color: #FFFFFF !important;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            height: 48px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+        .btn-login-primary:hover {
+            background: #E05D00 !important;
+            box-shadow: 0 8px 20px rgba(255, 107, 0, 0.3) !important;
+        }
+        @media (max-width: 900px) {
+            .login-wrapper {
+                flex-direction: column;
+                max-width: 480px;
+            }
+            .login-hero {
+                padding: 32px 20px;
+            }
+            .hero-illustration {
+                display: none;
+            }
+            .login-form-container {
+                padding: 32px 24px;
+            }
         }
     </style>
 </head>
 <body>
 <div class="auth-page">
     
-    <div class="auth-card" style="width: 100%; max-width: 600px; padding: 40px;">
-        <div class="auth-logo">
-            <span class="logo-icon"><i class="fa-solid fa-graduation-cap" style="color: #A67C52;"></i></span>
-            <h1>Examination Portal</h1>
-            <p>Select your portal and sign in to your account</p>
-        </div>
-
-        <!-- Horizontal Role Selection Grid -->
-        <div class="role-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
-            <!-- Student Card -->
-            <div class="role-card" id="card-student" onclick="selectRoleCard('student')">
-                <div class="role-icon"><i class="fa-solid fa-user-graduate" style="color: #A67C52;"></i></div>
-                <h2>Student</h2>
-                <p>Access assessments, tasks, and results.</p>
-            </div>
+    <div class="login-wrapper">
+        <!-- Left Hero Banner -->
+        <div class="login-hero">
+            <div class="hero-accent-top"></div>
+            <div class="hero-accent-bottom"></div>
             
-            <!-- Admin/Faculty Card -->
-            <div class="role-card" id="card-admin-faculty" onclick="selectRoleCard('admin_faculty')">
-                <div class="role-icon"><i class="fa-solid fa-user-shield" style="color: #A67C52;"></i></div>
-                <h2>Admin/Faculty (SUPER ADMIN)</h2>
-                <p>Configure portal and manage users.</p>
-            </div>
-        </div>
+            <div class="hero-content">
+                <div class="hero-logo-emblem">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <h1 class="hero-title">ONLINE <span class="highlight-orange">EXAM PORTAL</span></h1>
+                <p class="hero-subtitle">Your Gateway to Secure Online Examinations</p>
 
-        <!-- Selected Role Card -->
-        <div class="selected-role-card" id="selectedRoleCard">
-            Selected Role: <span id="selectedRoleName" style="color: #A67C52; font-weight: 700;">Student</span>
-        </div>
-
-        <?php if ($error): ?>
-            <div class="alert alert-error"><i class="fa-solid fa-circle-xmark"></i> <?= h($error) ?></div>
-        <?php endif; ?>
-        <?php $flash_s = get_flash('success'); if ($flash_s): ?>
-            <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> <?= h($flash_s) ?></div>
-        <?php endif; ?>
-
-        <form method="POST" action="" id="login-form">
-            <input type="hidden" name="selected_role" id="selected-role" value="student">
-            
-            <div class="form-group">
-                <label class="form-label" for="email">Email Address</label>
-                <input type="email" id="email" name="email" class="form-control"
-                       placeholder="you@example.com" value="<?= h($_POST['email'] ?? '') ?>" required autofocus>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="password">
-                    Password
-                    <a href="forgot_password.php" class="link" style="float:right; font-size:0.8rem; color: #A67C52;">Forgot password?</a>
-                </label>
-                <div style="position:relative;">
-                    <input type="password" id="password" name="password" class="form-control"
-                           placeholder="••••••••" required>
-                    <button type="button" onclick="togglePwd()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;" id="pwd-toggle">👁</button>
+                <div class="hero-illustration">
+                    <svg width="280" height="190" viewBox="0 0 350 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Clock on Wall -->
+                        <circle cx="260" cy="50" r="14" stroke="#475569" stroke-width="2" fill="none"/>
+                        <line x1="260" y1="50" x2="260" y2="42" stroke="#FF6B00" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="260" y1="50" x2="267" y2="50" stroke="#FF6B00" stroke-width="2" stroke-linecap="round"/>
+                        
+                        <!-- Table -->
+                        <rect x="90" y="170" width="180" height="6" rx="3" fill="#475569"/>
+                        <rect x="110" y="176" width="5" height="40" fill="#334155"/>
+                        <rect x="250" y="176" width="5" height="40" fill="#334155"/>
+                        
+                        <!-- Chair -->
+                        <rect x="45" y="155" width="40" height="10" rx="3" fill="#94A3B8"/>
+                        <rect x="38" y="110" width="10" height="55" rx="3" fill="#94A3B8"/>
+                        <line x1="45" y1="165" x2="40" y2="216" stroke="#64748B" stroke-width="4" stroke-linecap="round"/>
+                        <line x1="80" y1="165" x2="85" y2="216" stroke="#64748B" stroke-width="4" stroke-linecap="round"/>
+                        
+                        <!-- Student Avatar -->
+                        <circle cx="102" cy="90" r="14" fill="#FED7AA"/>
+                        <path d="M80 108 C80 102 90 100 102 100 C114 100 124 102 124 108 L118 155 L86 155 Z" fill="#FF6B00"/>
+                        <rect x="86" y="155" width="16" height="55" rx="4" fill="#1E293B"/>
+                        <rect x="104" y="155" width="16" height="55" rx="4" fill="#0F172A"/>
+                        
+                        <!-- Laptop -->
+                        <path d="M150 170 L165 130 L210 130 L195 170 Z" fill="#E2E8F0"/>
+                        <rect x="142" y="168" width="65" height="3" rx="1.5" fill="#94A3B8"/>
+                        
+                        <!-- Plant -->
+                        <path d="M228 170 L232 154 L244 154 L248 170 Z" fill="#E2E8F0"/>
+                        <path d="M236 146 Q228 130 236 122 Q244 130 236 146 Z" fill="#64748B"/>
+                    </svg>
                 </div>
             </div>
-            
-            <div class="form-group">
-                <label class="form-check">
-                    <input type="checkbox" name="remember" value="1">
-                    Remember Me
-                </label>
+        </div>
+
+        <!-- Right Form Panel -->
+        <div class="login-form-container">
+            <div class="login-header-text">
+                <h2>Welcome <span class="highlight-orange">Back!</span></h2>
+                <p>Login to continue your session</p>
             </div>
 
-            <button type="submit" class="btn btn-primary btn-block" id="login-btn" style="background:#A67C52; border-color:#A67C52;">Sign In →</button>
-        </form>
+            <!-- Role Selection Grid -->
+            <div class="role-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px;">
+                <!-- Student Card -->
+                <div class="role-card" id="card-student" onclick="selectRoleCard('student')">
+                    <div class="role-icon"><i class="fa-solid fa-user-graduate"></i></div>
+                    <h2>Student</h2>
+                    <p>Assessments & results</p>
+                </div>
+                
+                <!-- Admin/Faculty Card -->
+                <div class="role-card" id="card-admin-faculty" onclick="selectRoleCard('admin_faculty')">
+                    <div class="role-icon"><i class="fa-solid fa-user-shield"></i></div>
+                    <h2>Admin / Faculty</h2>
+                    <p>Super Admin control</p>
+                </div>
+            </div>
 
-        <div class="divider" id="signup-divider" style="display: flex;"><span>New here?</span></div>
+            <!-- Selected Role Indicator -->
+            <div class="selected-role-card" id="selectedRoleCard">
+                Role: <span id="selectedRoleName" style="color: #FF6B00; font-weight: 700;">Student</span>
+            </div>
 
-        <a href="register.php" class="btn btn-outline btn-block" id="signup-link" style="justify-content:center; display: flex;">
-            Create an Account
-        </a>
+            <?php if ($error): ?>
+                <div class="alert alert-error" style="margin-bottom:14px;"><i class="fa-solid fa-circle-xmark"></i> <?= h($error) ?></div>
+            <?php endif; ?>
+            <?php $flash_s = get_flash('success'); if ($flash_s): ?>
+                <div class="alert alert-success" style="margin-bottom:14px;"><i class="fa-solid fa-circle-check"></i> <?= h($flash_s) ?></div>
+            <?php endif; ?>
+
+            <form method="POST" action="" id="login-form">
+                <input type="hidden" name="selected_role" id="selected-role" value="student">
+                
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label" for="email">Username / Email</label>
+                    <div class="input-with-icon">
+                        <i class="fa-regular fa-user field-icon"></i>
+                        <input type="email" id="email" name="email" class="form-control"
+                               placeholder="balajichaughule@gmail.com" value="<?= h($_POST['email'] ?? '') ?>" required autofocus>
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label" for="password">
+                        Password
+                        <a href="forgot_password.php" class="link" style="float:right; font-size:0.8rem; color: #FF6B00;">Forgot Password?</a>
+                    </label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-lock field-icon"></i>
+                        <input type="password" id="password" name="password" class="form-control"
+                               placeholder="••••••••" required style="padding-right: 44px;">
+                        <button type="button" onclick="togglePwd()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;" id="pwd-toggle">👁</button>
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label class="form-check">
+                        <input type="checkbox" name="remember" value="1">
+                        Remember me
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-login-primary btn-block" id="login-btn">LOGIN</button>
+            </form>
+
+            <div style="text-align: center; margin-top: 24px; font-size: 0.85rem; color: #64748B;" id="signup-link">
+                Don't have an account? <a href="register.php" style="color: #FF6B00; font-weight: 700; text-decoration: none;">Create an Account</a>
+            </div>
+        </div>
     </div>
 
     <!-- Site Footer -->

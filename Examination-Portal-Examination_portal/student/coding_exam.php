@@ -132,6 +132,20 @@ require_once dirname(__DIR__) . '/includes/header.php';
     overflow-y: auto;
     flex-grow: 1;
 }
+
+@media (max-width: 992px) {
+    .ide-container {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .ide-left, .ide-right {
+        min-height: 380px;
+        height: auto;
+    }
+    .ide-textarea {
+        min-height: 280px;
+    }
+}
 </style>
 
 <div class="page-header" style="margin-bottom:12px;">

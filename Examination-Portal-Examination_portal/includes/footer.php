@@ -193,9 +193,92 @@
 
 <script>
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('collapsed');
-    document.querySelector('.main-wrapper').classList.toggle('expanded');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const wrapper = document.querySelector('.main-wrapper');
+    
+    if (window.innerWidth <= 768) {
+        sidebar.classList.toggle('mobile-open');
+        if (overlay) overlay.classList.toggle('show');
+    } else {
+        sidebar.classList.toggle('collapsed');
+        if (wrapper) wrapper.classList.toggle('expanded');
+    }
 }
+
+// Close mobile sidebar on window resize to desktop width
+window.addEventListener('resize', function() {
+    if (window.innerWidth > 768) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('mobile-open');
+        if (overlay) overlay.classList.remove('show');
+    }
+});
+
+function toggleTheme() {
+    const isDark = document.body.classList.toggle('dark-mode');
+    document.documentElement.classList.toggle('dark-mode', isDark);
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    updateThemeUI(isDark);
+}
+
+function updateThemeUI(isDark) {
+    const btn = document.getElementById('themeToggleBtn');
+    if (btn) {
+        btn.innerHTML = isDark 
+            ? '<i class="fa-solid fa-sun" style="color: #f59e0b;"></i>' 
+            : '<i class="fa-solid fa-moon"></i>';
+        btn.setAttribute('title', isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const isDark = localStorage.getItem('theme') === 'dark' || document.body.classList.contains('dark-mode');
+    if (isDark) {
+        document.body.classList.add('dark-mode');
+        document.documentElement.classList.add('dark-mode');
+    }
+    updateThemeUI(isDark);
+
+    // Interactive Brightening Animation & Light Wave Aura for Stat Cards and Nav Tabs
+    document.querySelectorAll('.stat-card, .nav-link').forEach(element => {
+        element.addEventListener('click', function(e) {
+            // Trigger flash brightening animation
+            this.classList.remove('brightening');
+            void this.offsetWidth; // Trigger DOM reflow to restart animation
+            this.classList.add('brightening');
+
+            // Create radial light wave aura at exact click coordinates
+            const rect = this.getBoundingClientRect();
+            const aura = document.createElement('span');
+            aura.className = 'click-bright-aura';
+            aura.style.left = (e.clientX - rect.left) + 'px';
+            aura.style.top = (e.clientY - rect.top) + 'px';
+
+            this.appendChild(aura);
+
+            setTimeout(() => {
+                aura.remove();
+            }, 700);
+
+            // Smooth delay for inline location.href navigation so user sees the brightening animation
+            const onclickAttr = this.getAttribute('onclick');
+            if (onclickAttr && onclickAttr.includes('location.href')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const match = onclickAttr.match(/location\.href\s*=\s*['"]([^'"]+)['"]/);
+                if (match && match[1]) {
+                    const targetUrl = match[1];
+                    setTimeout(() => {
+                        window.location.href = targetUrl;
+                    }, 200);
+                }
+            }
+        }, true);
+    });
+});
+
 function toggleNotifications() {
     const panel = document.getElementById('notifPanel');
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';

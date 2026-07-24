@@ -21,13 +21,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['exam_id'], $_POST['ac
         $exam_title = $exam['title'] ?? 'New Exam';
         
         // Fetch all students to notify
-        $std_stmt = $pdo->query("SELECT id FROM users WHERE role = 'student'");
-        $students = $std_stmt->fetchAll(PDO::FETCH_COLUMN);
+        $std_stmt = $pdo->query("SELECT id, name, email FROM users WHERE role = 'student'");
+        $students = $std_stmt->fetchAll();
         
-        foreach ($students as $student_id) {
-            send_notification($student_id, "🚀 A new exam has been published: " . $exam_title . ". Check Available Exams!");
+        foreach ($students as $std) {
+            send_notification((int)$std['id'], "🚀 A new exam has been published: " . $exam_title . ". Check Available Exams!");
+
+            $subject = "🚀 New Exam Published: " . $exam_title;
+            $body = "
+            <div style='font-family: Poppins, Arial, sans-serif; padding: 20px; color: #1e293b;'>
+                <h2 style='color: #ff6b00;'>🚀 New Exam Published</h2>
+                <p>Hello <strong>" . h($std['name']) . "</strong>,</p>
+                <p>A new examination <strong>\"" . h($exam_title) . "\"</strong> is now published and available on the Online Examination Portal.</p>
+                <div style='background: #f8fafc; padding: 15px; border-left: 4px solid #ff6b00; border-radius: 6px; margin: 15px 0;'>
+                    <p style='margin: 0;'><strong>Exam Title:</strong> " . h($exam_title) . "</p>
+                    <p style='margin: 6px 0 0 0;'><strong>Duration:</strong> " . ($exam['duration_minutes'] ?? 'N/A') . " minutes</p>
+                </div>
+                <p><a href='" . BASE_URL . "/student/exams.php' style='display: inline-block; padding: 10px 20px; background: #ff6b00; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;'>Take Exam Now</a></p>
+            </div>";
+            send_async_email($std['id'], 'exam_published', $std['email'], $subject, $body);
         }
-        flash('success', 'Exam published and students notified!');
+        flash('success', 'Exam published and student email notifications dispatched!');
     } else {
         flash('success', 'Exam unpublished successfully.');
     }

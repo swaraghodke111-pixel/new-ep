@@ -23,7 +23,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_task'])) {
     } else {
         $stmt = $pdo->prepare("INSERT INTO tasks (title, description, deadline, created_by) VALUES (?, ?, ?, ?)");
         if ($stmt->execute([$title, $description, $deadline, $user_id])) {
-            $success = 'Task created successfully!';
+            $success = 'Task created successfully and student email notifications dispatched!';
+            
+            // Notify all students via in-app & email notification
+            $students = $pdo->query("SELECT id, name, email FROM users WHERE role = 'student'")->fetchAll();
+            $faculty_name = $_SESSION['user_name'] ?? 'Faculty Member';
+
+            foreach ($students as $std) {
+                $notif_text = "📌 New Task Assigned: \"" . $title . "\" by " . $faculty_name . ". Due: " . date('M d, Y g:i A', strtotime($deadline));
+                send_notification((int)$std['id'], $notif_text);
+
+                $subject = "📌 New Task / Assignment Posted: " . $title;
+                $body = "
+                <div style='font-family: Poppins, Arial, sans-serif; padding: 20px; color: #1e293b;'>
+                    <h2 style='color: #ff6b00;'>📌 New Assignment / Task Posted</h2>
+                    <p>Hello <strong>" . h($std['name']) . "</strong>,</p>
+                    <p>Faculty member <strong>" . h($faculty_name) . "</strong> has assigned a new task/assignment on the portal.</p>
+                    <div style='background: #f8fafc; padding: 15px; border-left: 4px solid #ff6b00; border-radius: 6px; margin: 15px 0;'>
+                        <p style='margin: 0;'><strong>Task Title:</strong> " . h($title) . "</p>
+                        <p style='margin: 6px 0 0 0;'><strong>Description:</strong> " . nl2br(h($description)) . "</p>
+                        <p style='margin: 6px 0 0 0;'><strong>Deadline:</strong> " . date('F j, Y, g:i a', strtotime($deadline)) . "</p>
+                    </div>
+                    <p><a href='" . BASE_URL . "/student/tasks.php' style='display: inline-block; padding: 10px 20px; background: #ff6b00; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;'>View Task & Submit Answer</a></p>
+                </div>";
+                send_async_email($std['id'], 'task_posted', $std['email'], $subject, $body);
+            }
         } else {
             $error = 'Failed to create task.';
         }

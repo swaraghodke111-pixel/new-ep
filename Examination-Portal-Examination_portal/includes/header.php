@@ -3,6 +3,9 @@
 $page_title = $page_title ?? APP_NAME;
 $unread_count = is_logged_in() ? get_unread_count((int)$_SESSION['user_id']) : 0;
 $role = get_role();
+
+// Automatically check and send 1-day prior deadline reminders to students
+check_and_send_deadline_reminders();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -18,13 +21,28 @@ $role = get_role();
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css">
     <!-- SweetAlert2 library -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        (function() {
+            if (localStorage.getItem('theme') === 'dark') {
+                document.documentElement.classList.add('dark-mode');
+            }
+        })();
+    </script>
 </head>
 <body>
+<script>
+    if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark-mode');
+    }
+</script>
+
+<!-- SIDEBAR OVERLAY FOR MOBILE -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <!-- SIDEBAR NAV -->
 <div class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-        <span class="brand-icon"><i class="fa-solid fa-graduation-cap" style="color: #60A5FA;"></i></span>
+        <span class="brand-icon"><i class="fa-solid fa-graduation-cap" style="color: #FF6B00;"></i></span>
         <div>
             <div class="brand-name">ExamPortal</div>
             <div class="brand-role"><?= ucfirst($role) ?> Panel</div>
@@ -147,6 +165,11 @@ $role = get_role();
                     <span class="notif-badge"><?= $unread_count ?></span>
                 <?php endif; ?>
             </div>
+
+            <!-- Dark Mode Toggle Button (Left side of Profile) -->
+            <button class="theme-toggle-btn" onclick="toggleTheme()" id="themeToggleBtn" title="Toggle Dark/Light Mode">
+                <i class="fa-solid fa-moon"></i>
+            </button>
 
             <!-- Profile Dropdown -->
             <div class="profile-dropdown-container">
