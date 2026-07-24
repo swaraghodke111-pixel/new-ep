@@ -403,14 +403,6 @@ body {
     margin-bottom: 32px;
 }
 
-/* ── Stat Cards ─────────────────────────────────────────────── */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 24px;
-    margin-bottom: 32px;
-}
-
 .stat-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
